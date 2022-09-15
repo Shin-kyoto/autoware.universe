@@ -103,6 +103,17 @@ inline double get2dIoU(const T1 source_object, const T2 target_object)
 }
 
 template <class T1, class T2>
+bool isIncluded(const T1 source_object, const T2 target_object)
+{
+  const auto & source_pose = getPose(source_object);
+  const auto & target_pose = getPose(target_object);
+
+  const auto source_polygon = tier4_autoware_utils::toPolygon2d(source_pose, source_object.shape);
+  const auto target_polygon = tier4_autoware_utils::toPolygon2d(target_pose, target_object.shape);
+  return boost::geometry::within(source_polygon, target_polygon);
+}
+
+template <class T1, class T2>
 inline double get2dPrecision(const T1 source_object, const T2 target_object)
 {
   const auto & source_pose = getPose(source_object);

@@ -67,6 +67,7 @@ private:
   std::unique_ptr<DataAssociation> data_association_;
   std::string base_link_frame_id_;  // associated with the base_link frame
   bool remove_overlapped_unknown_objects_;
+  bool remove_included_objects_;
   struct
   {
     double precision_threshold;
