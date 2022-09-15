@@ -12,5 +12,7 @@
     <remap from="output/object" to="$(var output/object)"/>
     <param from="$(var data_association_matrix_path)"/>
     <param name="remove_included_objects" value="$(var remove_included_objects)"/>
+    <param name="precision_threshold_to_judge_overlapped" value="0.1"/>
+    <param name="distance_threshold" value="25.0"/>
   </node>
 </launch>
