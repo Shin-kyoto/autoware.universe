@@ -49,22 +49,23 @@ autoware_auto_perception_msgs::msg::Shape extendShape(
 bool isUnknownObjectOverlapped(
   const autoware_auto_perception_msgs::msg::DetectedObject & unknown_object,
   const autoware_auto_perception_msgs::msg::DetectedObject & known_object,
-  const double precision_threshold, const double recall_threshold, const bool remove_included_objects_)
+  const double precision_threshold, const double recall_threshold,
+  const bool remove_included_objects_)
 {
   // check if unknown_object is included in known_object
-  if (remove_included_objects_){
-      autoware_auto_perception_msgs::msg::DetectedObject extended_known_object = known_object;
-      extended_known_object.shape = extendShape(known_object.shape, /*scale*/ 1.1);
-      const auto unknown_inclusion = perception_utils::get2dRecall(unknown_object, known_object);
-      if (perception_utils::isIncluded(unknown_object, known_object)){
-        return true;        
-      }
-      if (unknown_inclusion > 0.1) {
-        RCLCPP_ERROR_STREAM(
-          rclcpp::get_logger("isUnknownObjectOverlapped"),
-          "[isUnknownObjectOverlapped] " << unknown_inclusion);
-        return true;
-      }
+  if (remove_included_objects_) {
+    autoware_auto_perception_msgs::msg::DetectedObject extended_known_object = known_object;
+    extended_known_object.shape = extendShape(known_object.shape, /*scale*/ 1.1);
+    const auto unknown_inclusion = perception_utils::get2dRecall(unknown_object, known_object);
+    if (perception_utils::isIncluded(unknown_object, known_object)) {
+      return true;
+    }
+    if (unknown_inclusion > 0.1) {
+      RCLCPP_ERROR_STREAM(
+        rclcpp::get_logger("isUnknownObjectOverlapped"),
+        "[isUnknownObjectOverlapped] " << unknown_inclusion);
+      return true;
+    }
   }
   constexpr double sq_distance_threshold = std::pow(5.0, 2.0);
   const double sq_distance = tier4_autoware_utils::calcSquaredDistance2d(
@@ -102,8 +103,7 @@ ObjectAssociationMergerNode::ObjectAssociationMergerNode(const rclcpp::NodeOptio
     declare_parameter<double>("precision_threshold_to_judge_overlapped", 0.4);
   overlapped_judge_param_.recall_threshold =
     declare_parameter<double>("recall_threshold_to_judge_overlapped", 0.5);
-  remove_included_objects_ =
-    declare_parameter<bool>("remove_included_objects", true);
+  remove_included_objects_ = declare_parameter<bool>("remove_included_objects", true);
 
   const auto tmp = this->declare_parameter<std::vector<int64_t>>("can_assign_matrix");
   const std::vector<int> can_assign_matrix(tmp.begin(), tmp.end());
@@ -186,7 +186,7 @@ void ObjectAssociationMergerNode::objectsCallback(
               unknown_object, known_object, overlapped_judge_param_.precision_threshold,
               overlapped_judge_param_.recall_threshold, remove_included_objects_)) {
           is_overlapped = true;
-          if (perception_utils::getHighestProbLabel(known_object.classification) == Label::TRUCK){
+          if (perception_utils::getHighestProbLabel(known_object.classification) == Label::TRUCK) {
             RCLCPP_ERROR_STREAM(
               rclcpp::get_logger("isUnknownObjectOverlapped"),
               "[isUnknownObjectOverlapped] TRUCK, NOT push_back");
