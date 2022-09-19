@@ -39,9 +39,8 @@ bool isUnknownObjectOverlapped(
 {
   const double distance_threshold = *std::next(
     distance_threshold_list.begin(),
-    perception_utils::getHighestProbLabel(known_object.classification))
-                                      const double sq_distance_threshold =
-    std::pow(distance_threshold, 2.0);
+    perception_utils::getHighestProbLabel(known_object.classification));
+  const double sq_distance_threshold = std::pow(distance_threshold, 2.0);
   const double sq_distance = tier4_autoware_utils::calcSquaredDistance2d(
     unknown_object.kinematics.pose_with_covariance.pose,
     known_object.kinematics.pose_with_covariance.pose);
