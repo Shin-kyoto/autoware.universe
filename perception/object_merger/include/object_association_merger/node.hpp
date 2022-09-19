@@ -67,11 +67,11 @@ private:
   std::unique_ptr<DataAssociation> data_association_;
   std::string base_link_frame_id_;  // associated with the base_link frame
   bool remove_overlapped_unknown_objects_;
-  double distance_threshold_;
   struct
   {
     double precision_threshold;
     double recall_threshold;
+    std::list<double> distance_threshold_list;
   } overlapped_judge_param_;
 };
 }  // namespace object_association
