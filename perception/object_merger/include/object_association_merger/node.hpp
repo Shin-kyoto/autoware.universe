@@ -39,6 +39,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace object_association
 {
@@ -71,7 +72,7 @@ private:
   {
     double precision_threshold;
     double recall_threshold;
-    std::list<double> distance_threshold_list;
+    std::vector<double> distance_threshold_list;
   } overlapped_judge_param_;
 };
 }  // namespace object_association
