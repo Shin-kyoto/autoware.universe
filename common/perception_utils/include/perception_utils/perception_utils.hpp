@@ -177,6 +177,11 @@ bool transformObjects(
       tf2::fromMsg(object.kinematics.pose_with_covariance.pose, tf_objects_world2objects);
       tf_target2objects = tf_target2objects_world * tf_objects_world2objects;
       tf2::toMsg(tf_target2objects, object.kinematics.pose_with_covariance.pose);
+      for (const auto & point : object.shape.footprint.points) {
+        tf2::fromMsg(point, tf_objects_world2objects);
+        tf_target2objects = tf_target2objects_world * tf_objects_world2objects;
+        tf2::toMsg(tf_target2objects, point);
+      }
       // TODO(yukkysaito) transform covariance
     }
   }
