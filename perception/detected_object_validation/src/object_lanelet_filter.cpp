@@ -50,6 +50,8 @@ ObjectLaneletFilterNode::ObjectLaneletFilterNode(const rclcpp::NodeOptions & nod
     "input/object", rclcpp::QoS{1}, std::bind(&ObjectLaneletFilterNode::objectCallback, this, _1));
   object_pub_ = this->create_publisher<autoware_auto_perception_msgs::msg::DetectedObjects>(
     "output/object", rclcpp::QoS{1});
+  debug_object_pub_ = this->create_publisher<autoware_auto_perception_msgs::msg::DetectedObjects>(
+    "debug/lanelet_filtered_object", rclcpp::QoS{1});
 }
 
 void ObjectLaneletFilterNode::mapCallback(
@@ -81,6 +83,10 @@ void ObjectLaneletFilterNode::objectCallback(
     RCLCPP_ERROR(get_logger(), "Failed transform to map.");
     return;
   }
+  debug_object_pub_->publish(transformed_objects);
+
+
+  // publish transformed_objects
 
   // calculate convex hull
   const auto convex_hull = getConvexHull(transformed_objects);
