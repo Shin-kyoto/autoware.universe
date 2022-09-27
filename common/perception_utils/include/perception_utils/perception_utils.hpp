@@ -177,12 +177,21 @@ bool transformObjects(
       tf2::fromMsg(object.kinematics.pose_with_covariance.pose, tf_objects_world2objects);
       tf_target2objects = tf_target2objects_world * tf_objects_world2objects;
       tf2::toMsg(tf_target2objects, object.kinematics.pose_with_covariance.pose);
-      // for (const auto & point : object.shape.footprint.points) {
-      //   tf2::fromMsg(point, tf_objects_world2objects);
-      //   tf_target2objects = tf_target2objects_world * tf_objects_world2objects;
-      //   tf2::toMsg(tf_target2objects, point);
-      // }
       // TODO(yukkysaito) transform covariance
+
+      // convert point from base_link to map
+      geometry_msgs::msg::TransformStamped tf_target2objects_stamped;
+      tf_target2objects_stamped.transform = tf2::toMsg(tf_target2objects);
+      for (auto & point : object.shape.footprint.points) {
+        geometry_msgs::msg::PointStamped point_stamped, point_transformed_stamped;
+        point_stamped.point.x = point.x;
+        point_stamped.point.y = point.y;
+        point_stamped.point.z = point.z;
+        tf2::doTransform(point_stamped, point_transformed_stamped, tf_target2objects_stamped);
+        point.x = point_transformed_stamped.point.x;
+        point.y = point_transformed_stamped.point.y;
+        point.z = point_transformed_stamped.point.z;
+      }
     }
   }
   return true;
