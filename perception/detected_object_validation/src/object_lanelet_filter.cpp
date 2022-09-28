@@ -52,6 +52,8 @@ ObjectLaneletFilterNode::ObjectLaneletFilterNode(const rclcpp::NodeOptions & nod
     "output/object", rclcpp::QoS{1});
   debug_object_pub_ = this->create_publisher<autoware_auto_perception_msgs::msg::DetectedObjects>(
     "debug/lanelet_filtered_object", rclcpp::QoS{1});
+  debug_polygon_pub_ =
+    this->create_publisher<visualization_msgs::msg::MarkerArray>("debug/polygon", rclcpp::QoS{1});
 }
 
 void ObjectLaneletFilterNode::mapCallback(
@@ -85,6 +87,9 @@ void ObjectLaneletFilterNode::objectCallback(
   }
   debug_object_pub_->publish(transformed_objects);
 
+  // debug msg
+  visualization_msgs::msg::MarkerArray marker_array;
+  int debug_marker_pub_flag = 0;
 
   // publish transformed_objects
 
@@ -98,6 +103,11 @@ void ObjectLaneletFilterNode::objectCallback(
     const auto & footprint = object.shape.footprint;
     const auto & position = object.kinematics.pose_with_covariance.pose.position;
     const auto & label = object.classification.front().label;
+    // debug msg
+    const auto color = tier4_autoware_utils::createMarkerColor(0.0, 1.0, 0.0, 0.5);
+    auto marker = tier4_autoware_utils::createDefaultMarker(
+      "map", this->now(), "polygon_footprints", 0, visualization_msgs::msg::Marker::LINE_LIST,
+      tier4_autoware_utils::createMarkerScale(0.5, 0, 0), color);
     if (
       (label == Label::UNKNOWN && filter_target_.UNKNOWN) ||
       (label == Label::CAR && filter_target_.CAR) ||
@@ -110,6 +120,14 @@ void ObjectLaneletFilterNode::objectCallback(
       Polygon2d polygon;
       for (const auto & point : footprint.points) {
         polygon.outer().emplace_back(point.x + position.x, point.y + position.y);
+        // debug用msgに追加
+        marker.points.push_back(
+          tier4_autoware_utils::createPoint(point.x + position.x, point.y + position.y, 0.0));
+      }
+      // debug pub
+      if (marker_array.markers.size() % 2 == 0) {
+        marker_array.markers.push_back(marker);
+        debug_marker_pub_flag = 1;
       }
       polygon.outer().push_back(polygon.outer().front());
       if (isPolygonOverlapLanelets(polygon, intersected_lanelets)) {
@@ -121,6 +139,10 @@ void ObjectLaneletFilterNode::objectCallback(
     ++index;
   }
   object_pub_->publish(output_object_msg);
+  // debug用msgをpub
+  if (debug_marker_pub_flag) {
+    debug_polygon_pub_->publish(marker_array);
+  }
 }
 
 LinearRing2d ObjectLaneletFilterNode::getConvexHull(
