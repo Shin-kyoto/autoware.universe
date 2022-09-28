@@ -19,6 +19,8 @@
 #include "tier4_autoware_utils/geometry/boost_geometry.hpp"
 #include "tier4_autoware_utils/geometry/boost_polygon_utils.hpp"
 
+#include <autoware_auto_tf2/tf2_autoware_auto_msgs.hpp>
+
 #include "autoware_auto_perception_msgs/msg/detected_objects.hpp"
 #include "autoware_auto_perception_msgs/msg/tracked_objects.hpp"
 #include "geometry_msgs/msg/transform.hpp"
@@ -174,24 +176,49 @@ bool transformObjects(
       tf2::fromMsg(*ros_target2objects_world, tf_target2objects_world);
     }
     for (auto & object : output_msg.objects) {
+      // const auto source_position =  object.kinematics.pose_with_covariance.pose.position;
       tf2::fromMsg(object.kinematics.pose_with_covariance.pose, tf_objects_world2objects);
       tf_target2objects = tf_target2objects_world * tf_objects_world2objects;
       tf2::toMsg(tf_target2objects, object.kinematics.pose_with_covariance.pose);
       // TODO(yukkysaito) transform covariance
 
+      // printf debug
+      tf2::Matrix3x3 Rot;
+      Rot = tf_objects_world2objects.getBasis();
+
+      for (int i = 0; i < 3; i++) {
+        RCLCPP_WARN_STREAM(
+          rclcpp::get_logger("perception_utils"),
+          Rot.getRow(i).getX() << Rot.getRow(i).getY() << Rot.getRow(i).getZ());
+      }
+      double roll = 100;
+      double pitch = 100;
+      double yaw = 100;
+      Rot.getRPY(roll, pitch, yaw);
+      RCLCPP_WARN_STREAM(rclcpp::get_logger("perception_utils"), roll << pitch << yaw);
+      RCLCPP_WARN_STREAM(
+        rclcpp::get_logger("perception_utils"), "---------------------------------------------");
+
       // convert point from base_link to map
-      // geometry_msgs::msg::TransformStamped tf_target2objects_stamped;
-      // tf_target2objects_stamped.transform = tf2::toMsg(tf_target2objects);
-      // for (auto & point : object.shape.footprint.points) {
-      //   geometry_msgs::msg::PointStamped point_stamped, point_transformed_stamped;
-      //   point_stamped.point.x = point.x;
-      //   point_stamped.point.y = point.y;
-      //   point_stamped.point.z = point.z;
-      //   tf2::doTransform(point_stamped, point_transformed_stamped, tf_target2objects_stamped);
-      //   point.x = point_transformed_stamped.point.x;
-      //   point.y = point_transformed_stamped.point.y;
-      //   point.z = point_transformed_stamped.point.z;
-      // }
+      geometry_msgs::msg::TransformStamped tf_target2objects_stamped;
+      tf_target2objects_stamped.transform = tf2::toMsg(tf_target2objects);
+      for (auto & point : object.shape.footprint.points) {
+        // object coordinate to base_link coordinate
+        // geometry_msgs::msg::Point32 point_base_link;
+        // point_base_link.x = point.x + source_position.x;
+        // point_base_link.y = point.y + source_position.y;
+        // point_base_link.z = point.z + source_position.z;
+
+        // base_link to map
+        geometry_msgs::msg::Point32 point_transformed;
+        tf2::doTransform<geometry_msgs::msg::Point32>(
+          point, point_transformed, tf_target2objects_stamped);
+
+        // map to rotated object coordinate
+        point.x = point_transformed.x - object.kinematics.pose_with_covariance.pose.position.x;
+        point.y = point_transformed.y - object.kinematics.pose_with_covariance.pose.position.y;
+        point.z = point_transformed.z - object.kinematics.pose_with_covariance.pose.position.z;
+      }
     }
   }
   return true;
