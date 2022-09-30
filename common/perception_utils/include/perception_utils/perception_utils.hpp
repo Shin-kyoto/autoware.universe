@@ -131,9 +131,9 @@ double getConvexShape(
   const auto target_max_min = getMaxMin2d(target_polygon);
 
   const double highest_x = std::max(source_max_min.at('max_x'), target_max_min.at('max_x'));
-  const double lowest_x = std::max(source_max_min.at('min_x'), target_max_min.at('min_x'));
+  const double lowest_x = std::min(source_max_min.at('min_x'), target_max_min.at('min_x'));
   const double highest_y = std::max(source_max_min.at('max_y'), target_max_min.at('max_y'));
-  const double lowest_y = std::max(source_max_min.at('min_y'), target_max_min.at('min_y'));
+  const double lowest_y = std::min(source_max_min.at('min_y'), target_max_min.at('min_y'));
 
   return (highest_x - lowest_x + 1) * (highest_y - lowest_y + 1);
 }
