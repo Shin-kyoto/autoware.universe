@@ -108,7 +108,7 @@ std::map<char, double> getMaxMin2d(const tier4_autoware_utils::Polygon2d polygon
   double min_x = 0.0;
   double max_y = 0.0;
   double min_y = 0.0;
-  for (const auto & point : olygon.points) {
+  for (const auto & point : polygon.points) {
     if (point.x > max_x) max_x = point.x;
     if (min_x > point.x) min_x = point.x;
     if (point.y > max_y) max_y = point.y;
