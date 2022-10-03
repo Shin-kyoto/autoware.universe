@@ -378,6 +378,12 @@ TEST(perception_utils, test_get2dIoU)
 TEST(perception_utils, test_get2dGeneralizedIoU)
 {
   using perception_utils::get2dGeneralizedIoU;
+  // TODO(Shin-kyoto):
+  // get2dGeneralizedIoU uses outer points of each polygon.
+  // But these points contain an sampling error of outer line,
+  // so get2dGeneralizedIoU icludes an error of about 0.03.
+  // Threfore, in this test, epsilon is set to 0.04.
+  constexpr double epsilon_giou = 4 * 1e-02;
   const double quart_circle = 0.16237976320958225;
 
   {  // non overlapped
@@ -393,7 +399,7 @@ TEST(perception_utils, test_get2dGeneralizedIoU)
     target_obj.shape.dimensions.x = 1.0;
 
     const double giou = get2dGeneralizedIoU(source_obj, target_obj);
-    EXPECT_DOUBLE_EQ(giou, 1 + (1 + 4 * quart_circle) / (2.5 * 2.5), epsilon);  // not 0
+    EXPECT_NEAR(giou, -1 + (1 + 4 * quart_circle) / (2.5 * 2.5), epsilon_giou);  // not 0
   }
 
   {  // partially overlapped
@@ -410,8 +416,8 @@ TEST(perception_utils, test_get2dGeneralizedIoU)
 
     const double giou = get2dGeneralizedIoU(source_obj, target_obj);
     EXPECT_NEAR(
-      giou, quart_circle / (1.0 + quart_circle * 3) - 1 + (1 + 3 * quart_circle) / (1.5 * 1.5),
-      epsilon);
+      giou, quart_circle / (1.0 + quart_circle * 3) - 1.0 + (1.0 + 3 * quart_circle) / (1.5 * 1.5),
+      epsilon_giou);
   }
 
   {  // fully overlapped
@@ -427,7 +433,7 @@ TEST(perception_utils, test_get2dGeneralizedIoU)
     target_obj.shape.dimensions.x = 1.0;
 
     const double giou = get2dGeneralizedIoU(source_obj, target_obj);
-    EXPECT_DOUBLE_EQ(giou, quart_circle * 4, epsilon);  // giou equals iou
+    EXPECT_NEAR(giou, quart_circle * 4, epsilon_giou);  // giou equals iou
   }
 }
 

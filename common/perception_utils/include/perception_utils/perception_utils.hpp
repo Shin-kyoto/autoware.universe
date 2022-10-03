@@ -29,7 +29,9 @@
 #include <tf2_ros/transform_listener.h>
 
 #include <algorithm>
+#include <map>
 #include <string>
+#include <utility>
 #include <vector>
 
 #ifdef ROS_DISTRO_GALACTIC
@@ -102,40 +104,41 @@ inline double get2dIoU(const T1 source_object, const T2 target_object)
   return iou;
 }
 
-std::map<char, double> getMaxMin2d(const tier4_autoware_utils::Polygon2d polygon)
+inline std::map<std::string, double> getMaxMin2d(const tier4_autoware_utils::Polygon2d & polygon)
 {
-  double max_x = 0.0;
-  double min_x = 0.0;
-  double max_y = 0.0;
-  double min_y = 0.0;
-  for (const auto & point : polygon.points) {
-    if (point.x > max_x) max_x = point.x;
-    if (min_x > point.x) min_x = point.x;
-    if (point.y > max_y) max_y = point.y;
-    if (min_y > point.y) min_y = point.y;
+  const auto init_point = polygon.outer().at(0);
+  double max_x = init_point.x();
+  double min_x = init_point.x();
+  double max_y = init_point.y();
+  double min_y = init_point.y();
+  for (const auto & point : polygon.outer()) {
+    if (point.x() > max_x) max_x = point.x();
+    if (min_x > point.x()) min_x = point.x();
+    if (point.y() > max_y) max_y = point.y();
+    if (min_y > point.y()) min_y = point.y();
   }
-  std::map<char, double> max_min_map;
+  std::map<std::string, double> max_min_map;
 
-  max_min_map.insert(std::make_pair('max_x', max_x));
-  max_min_map.insert(std::make_pair('min_x', min_x));
-  max_min_map.insert(std::make_pair('max_y', max_y));
-  max_min_map.insert(std::make_pair('min_y', min_y));
+  max_min_map.insert(std::make_pair("max_x", max_x));
+  max_min_map.insert(std::make_pair("min_x", min_x));
+  max_min_map.insert(std::make_pair("max_y", max_y));
+  max_min_map.insert(std::make_pair("min_y", min_y));
   return max_min_map;
 }
 
-double getConvexShape(
-  const tier4_autoware_utils::Polygon2d source_polygon,
-  const tier4_autoware_utils::Polygon2d target_polygon)
+inline double getConvexShape(
+  const tier4_autoware_utils::Polygon2d & source_polygon,
+  const tier4_autoware_utils::Polygon2d & target_polygon)
 {
   const auto source_max_min = getMaxMin2d(source_polygon);
   const auto target_max_min = getMaxMin2d(target_polygon);
 
-  const double highest_x = std::max(source_max_min.at('max_x'), target_max_min.at('max_x'));
-  const double lowest_x = std::min(source_max_min.at('min_x'), target_max_min.at('min_x'));
-  const double highest_y = std::max(source_max_min.at('max_y'), target_max_min.at('max_y'));
-  const double lowest_y = std::min(source_max_min.at('min_y'), target_max_min.at('min_y'));
+  const double highest_x = std::max(source_max_min.at("max_x"), target_max_min.at("max_x"));
+  const double lowest_x = std::min(source_max_min.at("min_x"), target_max_min.at("min_x"));
+  const double highest_y = std::max(source_max_min.at("max_y"), target_max_min.at("max_y"));
+  const double lowest_y = std::min(source_max_min.at("min_y"), target_max_min.at("min_y"));
 
-  return (highest_x - lowest_x + 1) * (highest_y - lowest_y + 1);
+  return std::abs(highest_x - lowest_x) * std::abs(highest_y - lowest_y);
 }
 
 template <class T1, class T2>
@@ -157,7 +160,6 @@ inline double get2dGeneralizedIoU(const T1 source_object, const T2 target_object
   for (const auto & intersection_polygon : intersection_polygons) {
     intersection_area += boost::geometry::area(intersection_polygon);
   }
-  if (intersection_area == 0.0) return 0.0;
 
   for (const auto & union_polygon : union_polygons) {
     union_area += boost::geometry::area(union_polygon);
