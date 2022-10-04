@@ -23,6 +23,10 @@
 #include <autoware_auto_mapping_msgs/msg/had_map_bin.hpp>
 #include <autoware_auto_perception_msgs/msg/detected_objects.hpp>
 
+// debug
+#include "visualization_msgs/msg/marker.hpp"
+#include "visualization_msgs/msg/marker_array.hpp"
+
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
 
@@ -56,9 +60,11 @@ private:
   void objectCallback(const autoware_auto_perception_msgs::msg::DetectedObjects::ConstSharedPtr);
   void mapCallback(const autoware_auto_mapping_msgs::msg::HADMapBin::ConstSharedPtr);
 
+  rclcpp::Publisher<autoware_auto_perception_msgs::msg::DetectedObjects>::SharedPtr debug_object_pub_;
   rclcpp::Publisher<autoware_auto_perception_msgs::msg::DetectedObjects>::SharedPtr object_pub_;
   rclcpp::Subscription<autoware_auto_mapping_msgs::msg::HADMapBin>::SharedPtr map_sub_;
   rclcpp::Subscription<autoware_auto_perception_msgs::msg::DetectedObjects>::SharedPtr object_sub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr debug_polygon_pub_;
 
   lanelet::LaneletMapPtr lanelet_map_ptr_;
   lanelet::ConstLanelets road_lanelets_;

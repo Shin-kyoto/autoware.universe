@@ -16,6 +16,7 @@
 
 #include <perception_utils/perception_utils.hpp>
 #include <tier4_autoware_utils/tier4_autoware_utils.hpp>
+#include <autoware_auto_tf2/tf2_autoware_auto_msgs.hpp>
 
 #include <boost/geometry/algorithms/convex_hull.hpp>
 #include <boost/geometry/algorithms/disjoint.hpp>
@@ -50,6 +51,10 @@ ObjectLaneletFilterNode::ObjectLaneletFilterNode(const rclcpp::NodeOptions & nod
     "input/object", rclcpp::QoS{1}, std::bind(&ObjectLaneletFilterNode::objectCallback, this, _1));
   object_pub_ = this->create_publisher<autoware_auto_perception_msgs::msg::DetectedObjects>(
     "output/object", rclcpp::QoS{1});
+  debug_object_pub_ = this->create_publisher<autoware_auto_perception_msgs::msg::DetectedObjects>(
+    "debug/lanelet_filtered_object", rclcpp::QoS{1});
+  debug_polygon_pub_ =
+    this->create_publisher<visualization_msgs::msg::MarkerArray>("debug/polygon", rclcpp::QoS{1});
 }
 
 void ObjectLaneletFilterNode::mapCallback(
@@ -72,6 +77,10 @@ void ObjectLaneletFilterNode::objectCallback(
   autoware_auto_perception_msgs::msg::DetectedObjects output_object_msg;
   output_object_msg.header = input_msg->header;
 
+  // debug msg
+  autoware_auto_perception_msgs::msg::DetectedObjects debug_object_msg;
+  debug_object_msg.header = input_msg->header; 
+
   if (!lanelet_map_ptr_) {
     RCLCPP_ERROR(get_logger(), "No vector map received.");
     return;
@@ -82,16 +91,34 @@ void ObjectLaneletFilterNode::objectCallback(
     return;
   }
 
+  // debug msg
+  visualization_msgs::msg::MarkerArray marker_array;
+  int debug_marker_pub_flag = 0;
+
   // calculate convex hull
   const auto convex_hull = getConvexHull(transformed_objects);
   // get intersected lanelets
   lanelet::ConstLanelets intersected_lanelets = getIntersectedLanelets(convex_hull, road_lanelets_);
+
+  // tf
+  tf2::Transform tf_target2objects_world;
+  tf2::Transform tf_target2objects;
+  tf2::Transform tf_objects_world2objects;
+  const auto ros_target2objects_world = getTransform(tf_buffer_, input_msg->header.frame_id, "map", input_msg->header.stamp);
+  tf2::fromMsg(*ros_target2objects_world, tf_target2objects_world);
 
   int index = 0;
   for (const auto & object : transformed_objects.objects) {
     const auto & footprint = object.shape.footprint;
     const auto & position = object.kinematics.pose_with_covariance.pose.position;
     const auto & label = object.classification.front().label;
+
+    // debug msg
+    const auto color = tier4_autoware_utils::createMarkerColor(0.0, 1.0, 0.0, 0.5);
+    auto marker = tier4_autoware_utils::createDefaultMarker(
+      "map", this->now(), "polygon_footprints", 0, visualization_msgs::msg::Marker::LINE_LIST,
+      tier4_autoware_utils::createMarkerScale(0.5, 0, 0), color);
+
     if (
       (label == Label::UNKNOWN && filter_target_.UNKNOWN) ||
       (label == Label::CAR && filter_target_.CAR) ||
@@ -102,19 +129,42 @@ void ObjectLaneletFilterNode::objectCallback(
       (label == Label::BICYCLE && filter_target_.BICYCLE) ||
       (label == Label::PEDESTRIAN && filter_target_.PEDESTRIAN)) {
       Polygon2d polygon;
+      // get tf object to map
+      tf2::fromMsg(input_msg->objects.at(index).kinematics.pose_with_covariance.pose, tf_objects_world2objects); //
+      tf_target2objects = tf_target2objects_world * tf_objects_world2objects; //
+
+      geometry_msgs::msg::TransformStamped tf_target2objects_stamped; //
+      tf_target2objects_stamped.transform = tf2::toMsg(tf_target2objects); //
       for (const auto & point : footprint.points) {
-        polygon.outer().emplace_back(point.x + position.x, point.y + position.y);
+        geometry_msgs::msg::Point32 point_transformed; //
+        tf2::doTransform<geometry_msgs::msg::Point32>(point, point_transformed, tf_target2objects_stamped); //
+        polygon.outer().emplace_back(point_transformed.x + position.x, point_transformed.y + position.y); // 
+        // debug用msgに追加
+        marker.points.push_back(tier4_autoware_utils::createPoint(point_transformed.x + position.x, point_transformed.y + position.y, 0.0));
+      }
+      // debug pub
+      if (marker_array.markers.size() % 2 == 0) {
+        marker_array.markers.push_back(marker);
+        debug_marker_pub_flag = 1;
       }
       polygon.outer().push_back(polygon.outer().front());
       if (isPolygonOverlapLanelets(polygon, intersected_lanelets)) {
         output_object_msg.objects.emplace_back(input_msg->objects.at(index));
+      }
+      else{
+        debug_object_msg.objects.emplace_back(input_msg->objects.at(index)); // debug
       }
     } else {
       output_object_msg.objects.emplace_back(input_msg->objects.at(index));
     }
     ++index;
   }
+  debug_object_pub_->publish(debug_object_msg); //
   object_pub_->publish(output_object_msg);
+  // debug用msgをpub
+  if (debug_marker_pub_flag) {
+    debug_polygon_pub_->publish(marker_array);
+  }
 }
 
 LinearRing2d ObjectLaneletFilterNode::getConvexHull(
