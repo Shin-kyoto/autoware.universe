@@ -23,10 +23,6 @@
 #include <autoware_auto_mapping_msgs/msg/had_map_bin.hpp>
 #include <autoware_auto_perception_msgs/msg/detected_objects.hpp>
 
-// debug
-#include "visualization_msgs/msg/marker.hpp"
-#include "visualization_msgs/msg/marker_array.hpp"
-
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
 
