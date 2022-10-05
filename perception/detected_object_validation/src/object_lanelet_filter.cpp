@@ -110,7 +110,7 @@ void ObjectLaneletFilterNode::objectCallback(
   int index = 0;
   for (const auto & object : transformed_objects.objects) {
     const auto & footprint = object.shape.footprint;
-    const auto & position = object.kinematics.pose_with_covariance.pose.position;
+    // const auto & position = object.kinematics.pose_with_covariance.pose.position;
     const auto & label = object.classification.front().label;
 
     // debug msg
@@ -138,9 +138,9 @@ void ObjectLaneletFilterNode::objectCallback(
       for (const auto & point : footprint.points) {
         geometry_msgs::msg::Point32 point_transformed; //
         tf2::doTransform<geometry_msgs::msg::Point32>(point, point_transformed, tf_target2objects_stamped); //
-        polygon.outer().emplace_back(point_transformed.x + position.x, point_transformed.y + position.y); // 
+        polygon.outer().emplace_back(point_transformed.x, point_transformed.y); // 
         // debug用msgに追加
-        marker.points.push_back(tier4_autoware_utils::createPoint(point_transformed.x + position.x, point_transformed.y + position.y, 0.0));
+        marker.points.push_back(tier4_autoware_utils::createPoint(point_transformed.x, point_transformed.y, 0.0));
       }
       // debug pub
       if (marker_array.markers.size() % 2 == 0) {
