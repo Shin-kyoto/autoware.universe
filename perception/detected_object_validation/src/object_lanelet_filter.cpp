@@ -33,13 +33,13 @@ private:
   tf2::Transform tf_objects_world2objects;
   geometry_msgs::msg::TransformStamped tf_target2objects_stamped;
 public:
-  bool setTransformTarget2ObjectsWorld(const std::shared_ptr<const autoware_auto_perception_msgs::msg::DetectedObjects> &, const std::string &, const tf2_ros::Buffer &);
-  bool setTransformTarget2Objects(const geometry_msgs::msg::Pose geometry_msgs::msg::PoseWithCovariance::pose &);
+  bool setTransformTarget2ObjectsWorld(const autoware_auto_perception_msgs::msg::DetectedObjects &, const std::string &, const tf2_ros::Buffer &);
+  bool setTransformTarget2Objects(const geometry_msgs::msg::Pose &);
   geometry_msgs::msg::Point32 transformPoints(const geometry_msgs::msg::Point32 &);
 };
 
-bool TransformPoints::setTransformTarget2ObjectsWorld(const std::shared_ptr<const autoware_auto_perception_msgs::msg::DetectedObjects> & input_msg, const std::string & target_frame_id, const tf2_ros::Buffer & tf_buffer){
-  const auto ros_target2objects_world = getTransform(tf_buffer, input_msg->header.frame_id, target_frame_id, input_msg->header.stamp);
+bool TransformPoints::setTransformTarget2ObjectsWorld(const autoware_auto_perception_msgs::msg::DetectedObjects & input_msg, const std::string & target_frame_id, const tf2_ros::Buffer & tf_buffer){
+  const auto ros_target2objects_world = getTransform(tf_buffer, input_msg.header.frame_id, target_frame_id, input_msg.header.stamp);
   if (!ros_target2objects_world) {
     return false;
   }
@@ -48,7 +48,7 @@ bool TransformPoints::setTransformTarget2ObjectsWorld(const std::shared_ptr<cons
   return true;
 }
 
-bool TransformPoints::setTransformTarget2Objects(const geometry_msgs::msg::Pose geometry_msgs::msg::PoseWithCovariance::pose & pose){
+bool TransformPoints::setTransformTarget2Objects(const geometry_msgs::msg::Pose & pose){
   // get tf object to map
   tf2::fromMsg(pose, tf_objects_world2objects);
   tf_target2objects = tf_target2objects_world * tf_objects_world2objects;
@@ -132,7 +132,7 @@ void ObjectLaneletFilterNode::objectCallback(
 
   // set tf_target2objects_world
   TransformPoints transform_points = TransformPoints();
-  transform_points::setTransformTarget2ObjectsWorld(*input_msg, "map", tf_buffer_);
+  transform_points.setTransformTarget2ObjectsWorld(*input_msg, "map", tf_buffer_);
 
   int index = 0;
   for (const auto & object : transformed_objects.objects) {
@@ -151,11 +151,11 @@ void ObjectLaneletFilterNode::objectCallback(
       Polygon2d polygon;
 
       // set tf_target2objects
-      transform_points::setTransformTarget2Objects(input_msg->objects.at(index).kinematics.pose_with_covariance.pose);
+      transform_points.setTransformTarget2Objects(input_msg->objects.at(index).kinematics.pose_with_covariance.pose);
 
       for (const auto & point : footprint.points) {
         // transform points from base_link to map
-        const auto point_transformed = transform_points::transformPoints(point);
+        const auto point_transformed = transform_points.transformPoints(point);
         polygon.outer().emplace_back(point_transformed.x, point_transformed.y);
       }
       polygon.outer().push_back(polygon.outer().front());
