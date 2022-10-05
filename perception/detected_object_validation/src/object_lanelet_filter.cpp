@@ -24,6 +24,48 @@
 
 #include <lanelet2_core/geometry/Polygon.h>
 
+namespace{
+class TransformPoints
+{
+private: 
+  tf2::Transform tf_target2objects_world;
+  tf2::Transform tf_target2objects;
+  tf2::Transform tf_objects_world2objects;
+  geometry_msgs::msg::TransformStamped tf_target2objects_stamped;
+public:
+  bool setTransformTarget2ObjectsWorld(const std::shared_ptr<const autoware_auto_perception_msgs::msg::DetectedObjects> &, const std::string &, const tf2_ros::Buffer &);
+  bool setTransformTarget2Objects(const geometry_msgs::msg::Pose geometry_msgs::msg::PoseWithCovariance::pose &);
+  geometry_msgs::msg::Point32 transformPoints(const geometry_msgs::msg::Point32 &);
+};
+
+bool TransformPoints::setTransformTarget2ObjectsWorld(const std::shared_ptr<const autoware_auto_perception_msgs::msg::DetectedObjects> & input_msg, const std::string & target_frame_id, const tf2_ros::Buffer & tf_buffer){
+  const auto ros_target2objects_world = getTransform(tf_buffer, input_msg->header.frame_id, target_frame_id, input_msg->header.stamp);
+  if (!ros_target2objects_world) {
+    return false;
+  }
+  tf2::fromMsg(*ros_target2objects_world, tf_target2objects_world);
+
+  return true;
+}
+
+bool TransformPoints::setTransformTarget2Objects(const geometry_msgs::msg::Pose geometry_msgs::msg::PoseWithCovariance::pose & pose){
+  // get tf object to map
+  tf2::fromMsg(pose, tf_objects_world2objects);
+  tf_target2objects = tf_target2objects_world * tf_objects_world2objects;
+  tf_target2objects_stamped.transform = tf2::toMsg(tf_target2objects);
+
+  return true;
+}
+
+geometry_msgs::msg::Point32 TransformPoints::transformPoints(const geometry_msgs::msg::Point32 & point){
+  geometry_msgs::msg::Point32 point_transformed;
+  tf2::doTransform<geometry_msgs::msg::Point32>(point, point_transformed, tf_target2objects_stamped);
+
+  return point_transformed;
+}
+
+}
+
 namespace object_lanelet_filter
 {
 ObjectLaneletFilterNode::ObjectLaneletFilterNode(const rclcpp::NodeOptions & node_options)
@@ -88,17 +130,13 @@ void ObjectLaneletFilterNode::objectCallback(
   // get intersected lanelets
   lanelet::ConstLanelets intersected_lanelets = getIntersectedLanelets(convex_hull, road_lanelets_);
 
-  // tf
-  tf2::Transform tf_target2objects_world;
-  tf2::Transform tf_target2objects;
-  tf2::Transform tf_objects_world2objects;
-  const auto ros_target2objects_world = getTransform(tf_buffer_, input_msg->header.frame_id, "map", input_msg->header.stamp);
-  tf2::fromMsg(*ros_target2objects_world, tf_target2objects_world);
+  // set tf_target2objects_world
+  TransformPoints transform_points = TransformPoints();
+  transform_points::setTransformTarget2ObjectsWorld(*input_msg, "map", tf_buffer_);
 
   int index = 0;
   for (const auto & object : transformed_objects.objects) {
     const auto & footprint = object.shape.footprint;
-    // const auto & position = object.kinematics.pose_with_covariance.pose.position;
     const auto & label = object.classification.front().label;
 
     if (
@@ -111,16 +149,14 @@ void ObjectLaneletFilterNode::objectCallback(
       (label == Label::BICYCLE && filter_target_.BICYCLE) ||
       (label == Label::PEDESTRIAN && filter_target_.PEDESTRIAN)) {
       Polygon2d polygon;
-      // get tf object to map
-      tf2::fromMsg(input_msg->objects.at(index).kinematics.pose_with_covariance.pose, tf_objects_world2objects); //
-      tf_target2objects = tf_target2objects_world * tf_objects_world2objects; //
 
-      geometry_msgs::msg::TransformStamped tf_target2objects_stamped; //
-      tf_target2objects_stamped.transform = tf2::toMsg(tf_target2objects); //
+      // set tf_target2objects
+      transform_points::setTransformTarget2Objects(input_msg->objects.at(index).kinematics.pose_with_covariance.pose);
+
       for (const auto & point : footprint.points) {
-        geometry_msgs::msg::Point32 point_transformed; //
-        tf2::doTransform<geometry_msgs::msg::Point32>(point, point_transformed, tf_target2objects_stamped); //
-        polygon.outer().emplace_back(point_transformed.x, point_transformed.y); // 
+        // transform points from base_link to map
+        const auto point_transformed = transform_points::transformPoints(point);
+        polygon.outer().emplace_back(point_transformed.x, point_transformed.y);
       }
       polygon.outer().push_back(polygon.outer().front());
       if (isPolygonOverlapLanelets(polygon, intersected_lanelets)) {
