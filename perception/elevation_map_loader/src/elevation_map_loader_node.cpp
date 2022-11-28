@@ -50,7 +50,8 @@ ElevationMapLoaderNode::ElevationMapLoaderNode(const rclcpp::NodeOptions & optio
 : Node("elevation_map_loader", options)
 {
   layer_name_ = this->declare_parameter("map_layer_name", std::string("elevation"));
-  std::string param_file_path = this->declare_parameter("param_file_path", "path_default");
+  // std::string param_file_path = this->declare_parameter("param_file_path", "path_default");
+  this->param_file_path = this->declare_parameter("param_file_path", "path_default");
   map_frame_ = this->declare_parameter("map_frame", "map");
   use_inpaint_ = this->declare_parameter("use_inpaint", true);
   inpaint_radius_ = this->declare_parameter("inpaint_radius", 0.3);
@@ -67,10 +68,11 @@ ElevationMapLoaderNode::ElevationMapLoaderNode(const rclcpp::NodeOptions & optio
   lane_filter_.voxel_size_y_ = declare_parameter("lane_filter_voxel_size_y", 0.04);
   lane_filter_.voxel_size_z_ = declare_parameter("lane_filter_voxel_size_z", 0.04);
 
-  auto grid_map_logger = rclcpp::get_logger("grid_map_logger");
-  grid_map_logger.set_level(rclcpp::Logger::Level::Error);
-  grid_map_pcl_loader_ = pcl::make_shared<grid_map::GridMapPclLoader>(grid_map_logger);
-  grid_map_pcl_loader_->loadParameters(param_file_path);
+  // this->grid_map_logger = rclcpp::get_logger("grid_map_logger");
+  // this->grid_map_logger.set_level(rclcpp::Logger::Level::Error);
+  // this->grid_map_logger.set_level(rclcpp::Logger::Level::Info);
+  // grid_map_pcl_loader_ = pcl::make_shared<grid_map::GridMapPclLoader>(grid_map_logger);
+  // grid_map_pcl_loader_->loadParameters(param_file_path);
 
   rclcpp::QoS durable_qos{1};
   durable_qos.transient_local();
@@ -95,46 +97,31 @@ ElevationMapLoaderNode::ElevationMapLoaderNode(const rclcpp::NodeOptions & optio
 
 void ElevationMapLoaderNode::publish()
 {
-  struct stat info;
-  if (stat(data_manager_.elevation_map_path_->c_str(), &info) != 0) {
-    RCLCPP_INFO(this->get_logger(), "Create elevation map from pointcloud map ");
-    createElevationMap();
-  } else if (info.st_mode & S_IFDIR) {
-    RCLCPP_INFO(
-      this->get_logger(), "Load elevation map from: %s",
-      data_manager_.elevation_map_path_->c_str());
+  // struct stat info;
+  // if (stat(data_manager_.elevation_map_path_->c_str(), &info) != 0) {
+  RCLCPP_INFO(this->get_logger(), "Create elevation map from pointcloud map ");
+  createElevationMap();
+  // } else if (info.st_mode & S_IFDIR) {
+  //   RCLCPP_INFO(this->get_logger(), "stat %d", stat(data_manager_.elevation_map_path_->c_str(),
+  //   &info)); RCLCPP_INFO(
+  //     this->get_logger(), "Load elevation map from: %s",
+  //     data_manager_.elevation_map_path_->c_str());
+  //   grid_map::GridMapRosConverter::loadFromBag(
+  //     *data_manager_.elevation_map_path_, "elevation_map", elevation_map_);
+  // }
 
-    // Check if bag can be loaded
-    bool is_bag_loaded = false;
-    try {
-      is_bag_loaded = grid_map::GridMapRosConverter::loadFromBag(
-        *data_manager_.elevation_map_path_, "elevation_map", elevation_map_);
-    } catch (rosbag2_storage_plugins::SqliteException & e) {
-      is_bag_loaded = false;
-    }
-    if (!is_bag_loaded) {
-      // Delete directory including elevation map if bag is broken
-      RCLCPP_ERROR(
-        this->get_logger(), "Try to loading bag, but bag is broken. Remove %s",
-        data_manager_.elevation_map_path_->c_str());
-      std::filesystem::remove_all(data_manager_.elevation_map_path_->c_str());
-      // Create elevation map from pointcloud map if bag is broken
-      RCLCPP_INFO(this->get_logger(), "Create elevation map from pointcloud map ");
-      createElevationMap();
-    }
-  }
+  // elevation_map_.setFrameId(map_frame_);
+  // auto msg = grid_map::GridMapRosConverter::toMessage(elevation_map_);
+  // pub_elevation_map_->publish(std::move(msg));
+  RCLCPP_INFO(this->get_logger(), "Elevation map is published");
 
-  elevation_map_.setFrameId(map_frame_);
-  auto msg = grid_map::GridMapRosConverter::toMessage(elevation_map_);
-  pub_elevation_map_->publish(std::move(msg));
-
-  if (use_elevation_map_cloud_publisher_) {
-    pcl::PointCloud<pcl::PointXYZ>::Ptr elevation_map_cloud_ptr =
-      createPointcloudFromElevationMap();
-    sensor_msgs::msg::PointCloud2 elevation_map_cloud_msg;
-    pcl::toROSMsg(*elevation_map_cloud_ptr, elevation_map_cloud_msg);
-    pub_elevation_map_cloud_->publish(elevation_map_cloud_msg);
-  }
+  // if (use_elevation_map_cloud_publisher_) {
+  //   pcl::PointCloud<pcl::PointXYZ>::Ptr elevation_map_cloud_ptr =
+  //     createPointcloudFromElevationMap();
+  //   sensor_msgs::msg::PointCloud2 elevation_map_cloud_msg;
+  //   pcl::toROSMsg(*elevation_map_cloud_ptr, elevation_map_cloud_msg);
+  //   pub_elevation_map_cloud_->publish(elevation_map_cloud_msg);
+  // }
 }
 
 void ElevationMapLoaderNode::onMapHash(
@@ -153,9 +140,11 @@ void ElevationMapLoaderNode::onPointcloudMap(
   const sensor_msgs::msg::PointCloud2::ConstSharedPtr pointcloud_map)
 {
   RCLCPP_INFO(this->get_logger(), "subscribe pointcloud_map");
-  pcl::PointCloud<pcl::PointXYZ> map_pcl;
-  pcl::fromROSMsg<pcl::PointXYZ>(*pointcloud_map, map_pcl);
-  data_manager_.map_pcl_ptr_ = pcl::make_shared<pcl::PointCloud<pcl::PointXYZ>>(map_pcl);
+  {
+    pcl::PointCloud<pcl::PointXYZ> map_pcl;
+    pcl::fromROSMsg<pcl::PointXYZ>(*pointcloud_map, map_pcl);
+    data_manager_.map_pcl_ptr_ = pcl::make_shared<pcl::PointCloud<pcl::PointXYZ>>(map_pcl);
+  }
   if (data_manager_.isInitialized()) {
     publish();
   }
@@ -177,6 +166,12 @@ void ElevationMapLoaderNode::onVectorMap(
 
 void ElevationMapLoaderNode::createElevationMap()
 {
+  auto grid_map_logger = rclcpp::get_logger("grid_map_logger");
+  // grid_map_logger.set_level(rclcpp::Logger::Level::Error);
+  grid_map_logger.set_level(rclcpp::Logger::Level::Info);
+  pcl::shared_ptr<grid_map::GridMapPclLoader> grid_map_pcl_loader_ =
+    pcl::make_shared<grid_map::GridMapPclLoader>(grid_map_logger);
+  grid_map_pcl_loader_->loadParameters(this->param_file_path);
   if (lane_filter_.use_lane_filter_) {
     const auto convex_hull = getConvexHull(data_manager_.map_pcl_ptr_);
     lanelet::ConstLanelets intersected_lanelets =
@@ -185,25 +180,54 @@ void ElevationMapLoaderNode::createElevationMap()
       getLaneFilteredPointCloud(intersected_lanelets, data_manager_.map_pcl_ptr_);
     grid_map_pcl_loader_->setInputCloud(lane_filtered_map_pcl_ptr);
   } else {
+    RCLCPP_INFO_STREAM(this->get_logger(), "before setInputCloud");
     grid_map_pcl_loader_->setInputCloud(data_manager_.map_pcl_ptr_);
+    RCLCPP_INFO_STREAM(this->get_logger(), "after setInputCloud");
   }
-  createElevationMapFromPointcloud();
-  elevation_map_ = grid_map_pcl_loader_->getGridMap();
-  if (use_inpaint_) {
-    inpaintElevationMap(inpaint_radius_);
-  }
-  saveElevationMap();
-}
-
-void ElevationMapLoaderNode::createElevationMapFromPointcloud()
-{
+  data_manager_.map_pcl_ptr_.reset();
+  RCLCPP_INFO_STREAM(
+    this->get_logger(),
+    "Size of grid_map_pcl_loader_ before create: " << sizeof(*grid_map_pcl_loader_));
+  // createElevationMapFromPointcloud();
   const auto start = std::chrono::high_resolution_clock::now();
   grid_map_pcl_loader_->preProcessInputCloud();
+  RCLCPP_INFO_STREAM(
+    this->get_logger(),
+    "Size of grid_map_pcl_loader_ before initializeGridMapGeometryFromInputCloud: "
+      << sizeof(*grid_map_pcl_loader_));
   grid_map_pcl_loader_->initializeGridMapGeometryFromInputCloud();
+  RCLCPP_INFO_STREAM(
+    this->get_logger(), "Size of grid_map_pcl_loader_ before addLayerFromInputCloud: "
+                          << sizeof(*grid_map_pcl_loader_));
   grid_map_pcl_loader_->addLayerFromInputCloud(layer_name_);
   grid_map::grid_map_pcl::printTimeElapsedToRosInfoStream(
     start, "Finish creating elevation map. Total time: ", this->get_logger());
+  //
+  elevation_map_ = grid_map_pcl_loader_->getGridMap();
+  RCLCPP_INFO_STREAM(
+    this->get_logger(),
+    "Size of grid_map_pcl_loader_ after create: " << sizeof(*grid_map_pcl_loader_));
+  RCLCPP_INFO_STREAM(this->get_logger(), "Size of elevation map: " << elevation_map_.getSize());
+  // grid_map_pcl_loader_->~GridMapPclLoader();
+  // if (use_inpaint_) {
+  //   inpaintElevationMap(inpaint_radius_);
+  // }
+  // saveElevationMap();
 }
+
+// void ElevationMapLoaderNode::createElevationMapFromPointcloud()
+// {
+//   const auto start = std::chrono::high_resolution_clock::now();
+//   grid_map_pcl_loader_->preProcessInputCloud();
+//   RCLCPP_INFO_STREAM(this->get_logger(), "Size of grid_map_pcl_loader_ before
+//   initializeGridMapGeometryFromInputCloud: " << sizeof(*grid_map_pcl_loader_));
+//   grid_map_pcl_loader_->initializeGridMapGeometryFromInputCloud();
+//   RCLCPP_INFO_STREAM(this->get_logger(), "Size of grid_map_pcl_loader_ before
+//   addLayerFromInputCloud: " << sizeof(*grid_map_pcl_loader_));
+//   grid_map_pcl_loader_->addLayerFromInputCloud(layer_name_);
+//   grid_map::grid_map_pcl::printTimeElapsedToRosInfoStream(
+//     start, "Finish creating elevation map. Total time: ", this->get_logger());
+// }
 
 void ElevationMapLoaderNode::inpaintElevationMap(const float radius)
 {

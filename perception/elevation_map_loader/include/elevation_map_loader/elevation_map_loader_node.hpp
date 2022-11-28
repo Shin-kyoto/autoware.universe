@@ -19,6 +19,7 @@
 #include <grid_map_core/GridMap.hpp>
 #include <grid_map_pcl/GridMapPclLoader.hpp>
 #include <grid_map_ros/GridMapRosConverter.hpp>
+// #include <rclcpp/logger.hpp>
 #include <lanelet2_extension/utility/message_conversion.hpp>
 #include <lanelet2_extension/utility/query.hpp>
 #include <rclcpp/rclcpp.hpp>
@@ -97,7 +98,8 @@ private:
   bool use_inpaint_;
   float inpaint_radius_;
   bool use_elevation_map_cloud_publisher_;
-  pcl::shared_ptr<grid_map::GridMapPclLoader> grid_map_pcl_loader_;
+  // pcl::shared_ptr<grid_map::GridMapPclLoader> grid_map_pcl_loader_;
+  std::string param_file_path;
 
   DataManager data_manager_;
   struct LaneFilter
