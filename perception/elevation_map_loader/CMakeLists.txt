@@ -9,7 +9,14 @@ find_package(PCL REQUIRED COMPONENTS io)
 ament_auto_add_library(elevation_map_loader_node SHARED
   src/elevation_map_loader_node.cpp
 )
+ament_auto_add_executable(elevation_map_loader_node_exe
+  src/elevation_map_loader_node_exe.cpp
+)
 target_link_libraries(elevation_map_loader_node ${PCL_LIBRARIES})
+target_link_libraries(elevation_map_loader_node_exe
+ ${PCL_LIBRARIES}
+ elevation_map_loader_node
+ )
 
 rclcpp_components_register_node(elevation_map_loader_node
   PLUGIN "ElevationMapLoaderNode"
