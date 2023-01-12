@@ -26,6 +26,7 @@
 
 #include "tier4_external_api_msgs/msg/map_hash.hpp"
 #include <autoware_auto_mapping_msgs/msg/had_map_bin.hpp>
+#include <autoware_map_msgs/srv/get_differential_point_cloud_map.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 
 #include <pcl/pcl_base.h>
@@ -66,9 +67,17 @@ private:
   rclcpp::Subscription<tier4_external_api_msgs::msg::MapHash>::SharedPtr sub_map_hash_;
   rclcpp::Publisher<grid_map_msgs::msg::GridMap>::SharedPtr pub_elevation_map_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_elevation_map_cloud_;
+  rclcpp::Client<autoware_map_msgs::srv::GetDifferentialPointCloudMap>::SharedPtr
+    pcd_loader_client_;
+  std::mutex pcd_loader_client_mutex_;
+  bool value_ready_ = false;
+  std::condition_variable condition_;
   void onPointcloudMap(const sensor_msgs::msg::PointCloud2::ConstSharedPtr pointcloud_map);
   void onMapHash(const tier4_external_api_msgs::msg::MapHash::ConstSharedPtr map_hash);
   void onVectorMap(const autoware_auto_mapping_msgs::msg::HADMapBin::ConstSharedPtr vector_map);
+  void update_map(
+    const geometry_msgs::msg::Point & position,
+    const pcl::PointCloud<pcl::PointXYZ>::Ptr & pointcloud_map);
 
   void publish();
   void createElevationMap();

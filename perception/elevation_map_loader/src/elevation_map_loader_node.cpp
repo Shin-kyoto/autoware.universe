@@ -83,14 +83,31 @@ ElevationMapLoaderNode::ElevationMapLoaderNode(const rclcpp::NodeOptions & optio
   }
 
   using std::placeholders::_1;
-  sub_map_hash_ = create_subscription<tier4_external_api_msgs::msg::MapHash>(
-    "/api/autoware/get/map/info/hash", durable_qos,
-    std::bind(&ElevationMapLoaderNode::onMapHash, this, _1));
-  sub_pointcloud_map_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-    "input/pointcloud_map", durable_qos,
-    std::bind(&ElevationMapLoaderNode::onPointcloudMap, this, _1));
-  sub_vector_map_ = this->create_subscription<autoware_auto_mapping_msgs::msg::HADMapBin>(
-    "input/vector_map", durable_qos, std::bind(&ElevationMapLoaderNode::onVectorMap, this, _1));
+  // bool enable_differential_load = declare_parameter<bool>("enable_differential_load");
+  bool enable_differential_load = true;
+  if (enable_differential_load) {
+    {
+      pcd_loader_client_ = create_client<autoware_map_msgs::srv::GetDifferentialPointCloudMap>(
+        "pcd_loader_service", rmw_qos_profile_services_default);
+      pcl::PointCloud<pcl::PointXYZ> pointcloud_map;
+      ElevationMapLoaderNode::update_map(pointcloud_map);
+      RCLCPP_INFO(this->get_logger(), "receive service with pointcloud_map");
+      data_manager_.map_pcl_ptr_ = pcl::make_shared<pcl::PointCloud<pcl::PointXYZ>>(pointcloud_map);
+    }
+
+    if (data_manager_.isInitialized()) {
+      publish();
+    }
+  } else {
+    sub_map_hash_ = create_subscription<tier4_external_api_msgs::msg::MapHash>(
+      "/api/autoware/get/map/info/hash", durable_qos,
+      std::bind(&ElevationMapLoaderNode::onMapHash, this, _1));
+    sub_pointcloud_map_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
+      "input/pointcloud_map", durable_qos,
+      std::bind(&ElevationMapLoaderNode::onPointcloudMap, this, _1));
+    sub_vector_map_ = this->create_subscription<autoware_auto_mapping_msgs::msg::HADMapBin>(
+      "input/vector_map", durable_qos, std::bind(&ElevationMapLoaderNode::onVectorMap, this, _1));
+  }
 }
 
 void ElevationMapLoaderNode::publish()
@@ -172,6 +189,37 @@ void ElevationMapLoaderNode::onVectorMap(
   lane_filter_.road_lanelets_ = lanelet::utils::query::roadLanelets(all_lanelets);
   if (data_manager_.isInitialized()) {
     publish();
+  }
+}
+
+void ElevationMapLoaderNode::update_map(const pcl::PointCloud<pcl::PointXYZ>::Ptr & pointcloud_map)
+{
+  // create a loading request with mode = 1
+  auto request = std::make_shared<autoware_map_msgs::srv::GetDifferentialPointCloudMap::Request>();
+  // 地図全体を要求する
+  request->area.type = GetDifferentialPointCloudMap::Request::ALL_AREA;  // 1;
+
+  std::vector<std::string> cached_ids{};
+  bool is_all_received = false;
+  while (is_all_received) {
+    request->cached_ids = cached_ids;  //毎回書き換える
+
+    // send a request to map_loader
+    auto result{pcd_loader_client_->async_send_request(
+      request,
+      [](rclcpp::Client<autoware_map_msgs::srv::GetDifferentialPointCloudMap>::SharedFuture) {})};
+
+    std::future_status status = result.wait_for(std::chrono::seconds(0));
+
+    // 点群地図と，serviceとして渡されてきた差分地図をconcat
+    if (result.get()->new_pointcloud_with_ids.empty()) {  // new_pointcloud_with_idsが空
+      is_all_received = true;
+    } else {
+      for (const auto & new_pointcloud_with_id : result.get()->new_pointcloud_with_ids) {
+        pcl::concatenate(new_pointcloud_with_id.pointcloud, pointcloud_map);
+        cached_ids.push_back(new_pointcloud_with_id.cell_id);
+      }
+    }
   }
 }
 
