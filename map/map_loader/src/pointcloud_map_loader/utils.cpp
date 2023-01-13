@@ -64,7 +64,8 @@ bool sphereAndBoxOverlapExists(
 bool isGridWithinQueriedArea(
   const autoware_map_msgs::msg::AreaInfo area, const PCDFileMetadata metadata)
 {
-  if (area.type == autoware_map_msgs::srv::GetDifferentialPointCloudMap::Request::ALL_AREA) return true;
+  if (area.type == autoware_map_msgs::srv::GetDifferentialPointCloudMap::Request::ALL_AREA)
+    return true;
   // Currently, the area load only supports spherical area
   geometry_msgs::msg::Point center = area.center;
   double radius = area.radius;
