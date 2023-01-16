@@ -89,10 +89,15 @@ ElevationMapLoaderNode::ElevationMapLoaderNode(const rclcpp::NodeOptions & optio
     {
       pcd_loader_client_ = create_client<autoware_map_msgs::srv::GetDifferentialPointCloudMap>(
         "pcd_loader_service", rmw_qos_profile_services_default);
-      const pcl::PointCloud<pcl::PointXYZ>::Ptr pointcloud_map;
+      // const pcl::PointCloud<pcl::PointXYZ>::Ptr pointcloud_map;
+      const sensor_msgs::msg::PointCloud2::SharedPtr pointcloud_map;
       ElevationMapLoaderNode::update_map(pointcloud_map);
       RCLCPP_INFO(this->get_logger(), "receive service with pointcloud_map");
-      data_manager_.map_pcl_ptr_ = pcl::make_shared<pcl::PointCloud<pcl::PointXYZ>>(pointcloud_map);
+      {
+        pcl::PointCloud<pcl::PointXYZ> map_pcl;
+        pcl::fromROSMsg<pcl::PointXYZ>(*pointcloud_map, map_pcl);
+        data_manager_.map_pcl_ptr_ = pcl::make_shared<pcl::PointCloud<pcl::PointXYZ>>(map_pcl);
+      }
     }
 
     if (data_manager_.isInitialized()) {
@@ -192,13 +197,13 @@ void ElevationMapLoaderNode::onVectorMap(
   }
 }
 
-void ElevationMapLoaderNode::update_map(const pcl::PointCloud<pcl::PointXYZ>::Ptr & pointcloud_map)
+void ElevationMapLoaderNode::update_map(
+  const sensor_msgs::msg::PointCloud2::SharedPtr pointcloud_map)
 {
   // create a loading request with mode = 1
   auto request = std::make_shared<autoware_map_msgs::srv::GetDifferentialPointCloudMap::Request>();
   // 地図全体を要求する
-  request->area.type =
-    autoware_map_msgs::srv::GetDifferentialPointCloudMap::Request::area::ALL_AREA;  // 1;
+  request->area.type = autoware_map_msgs::msg::AreaInfo::ALL_AREA;  // 1;
 
   std::vector<std::string> cached_ids{};
   bool is_all_received = false;
@@ -210,14 +215,15 @@ void ElevationMapLoaderNode::update_map(const pcl::PointCloud<pcl::PointXYZ>::Pt
       request,
       [](rclcpp::Client<autoware_map_msgs::srv::GetDifferentialPointCloudMap>::SharedFuture) {})};
 
-    std::future_status status = result.wait_for(std::chrono::seconds(0));
+    // std::future_status status = result.wait_for(std::chrono::seconds(0));
 
     // 点群地図と，serviceとして渡されてきた差分地図をconcat
     if (result.get()->new_pointcloud_with_ids.empty()) {  // new_pointcloud_with_idsが空
       is_all_received = true;
     } else {
       for (const auto & new_pointcloud_with_id : result.get()->new_pointcloud_with_ids) {
-        pcl::concatenate(new_pointcloud_with_id.pointcloud, pointcloud_map);
+        pcl::concatenatePointCloud(
+          new_pointcloud_with_id.pointcloud, *pointcloud_map, *pointcloud_map);
         cached_ids.push_back(new_pointcloud_with_id.cell_id);
       }
     }
