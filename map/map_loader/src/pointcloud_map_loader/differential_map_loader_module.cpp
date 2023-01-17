@@ -63,13 +63,14 @@ bool DifferentialMapLoaderModule::onServiceGetDifferentialPointCloudMap(
   GetDifferentialPointCloudMap::Request::SharedPtr req,
   GetDifferentialPointCloudMap::Response::SharedPtr res)
 {
-  float map_upper_limit = 2147473647;  // 一旦ハードコーディングする
+  // const long long map_upper_limit = 2147473647;  // 一旦ハードコーディングする
+  const long long map_upper_limit = 1000000000;
   auto area = req->area;
   std::vector<std::string> cached_ids = req->cached_ids;
   differentialAreaLoad(area, cached_ids, res);
 
   res->header.frame_id = "map";
-  const float response_pcd_size = res->new_pointcloud_with_ids.size() *
+  const long long response_pcd_size = res->new_pointcloud_with_ids.size() *
                                   res->new_pointcloud_with_ids[0].pointcloud.row_step *
                                   res->new_pointcloud_with_ids[0].pointcloud.height * 8;
   if (response_pcd_size > map_upper_limit) {
