@@ -65,6 +65,7 @@ bool DifferentialMapLoaderModule::onServiceGetDifferentialPointCloudMap(
   GetDifferentialPointCloudMap::Response::SharedPtr res)
 {
   std::cout << "start onServiceGetDifferentialPointCloudMap" << std::endl;
+  RCLCPP_INFO(logger_, "start onServiceGetDifferentialPointCloudMap");
   // const long long map_upper_limit = 2147473647;  // 一旦ハードコーディングする
   const long long map_upper_limit = 1000000000;
   auto area = req->area;
