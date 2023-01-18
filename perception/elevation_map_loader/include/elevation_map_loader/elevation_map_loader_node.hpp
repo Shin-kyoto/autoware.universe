@@ -75,7 +75,7 @@ private:
   void onPointcloudMap(const sensor_msgs::msg::PointCloud2::ConstSharedPtr pointcloud_map);
   void onMapHash(const tier4_external_api_msgs::msg::MapHash::ConstSharedPtr map_hash);
   void onVectorMap(const autoware_auto_mapping_msgs::msg::HADMapBin::ConstSharedPtr vector_map);
-  pcl::PointCloud<pcl::PointXYZ>::Ptr update_map();
+  void update_map(const sensor_msgs::msg::PointCloud2::SharedPtr pointcloud_map);
 
   void publish();
   void createElevationMap();
