@@ -18,6 +18,7 @@ DifferentialMapLoaderModule::DifferentialMapLoaderModule(
   rclcpp::Node * node, const std::map<std::string, PCDFileMetadata> & pcd_file_metadata_dict)
 : logger_(node->get_logger()), all_pcd_file_metadata_dict_(pcd_file_metadata_dict)
 {
+  RCLCPP_INFO(logger_, "start DifferentialMapLoaderModule");
   get_differential_pcd_maps_service_ = node->create_service<GetDifferentialPointCloudMap>(
     "service/get_differential_pcd_map",
     std::bind(
