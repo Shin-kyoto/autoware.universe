@@ -91,14 +91,14 @@ ElevationMapLoaderNode::ElevationMapLoaderNode(const rclcpp::NodeOptions & optio
   if (enable_differential_load) {
     {
       pcd_loader_client_ = create_client<autoware_map_msgs::srv::GetDifferentialPointCloudMap>(
-        "pcd_loader_service", rmw_qos_profile_services_default);
+        "service/get_differential_pcd_map", rmw_qos_profile_services_default);
       // const pcl::PointCloud<pcl::PointXYZ>::Ptr pointcloud_map;
       const sensor_msgs::msg::PointCloud2::SharedPtr pointcloud_map(new sensor_msgs::msg::PointCloud2);
       ElevationMapLoaderNode::update_map(pointcloud_map);
       RCLCPP_INFO(this->get_logger(), "receive service with pointcloud_map");
       {
         pcl::PointCloud<pcl::PointXYZ> map_pcl;
-        RCLCPP_INFO(this->get_logger(), "pointcloud_map->height: %d", static_cast<int>(pointcloud_map->height));
+        // RCLCPP_INFO(this->get_logger(), "pointcloud_map->height: %d", static_cast<int>(pointcloud_map->height));
         // RCLCPP_INFO(this->get_logger(), "pointcloud_map->fields.at(0).count: %d", static_cast<int>(pointcloud_map->fields.at(0).count));
         // RCLCPP_INFO(this->get_logger(), "pointcloud_map->fields.at(0).count: %d", static_cast<int>(pointcloud_map->fields.at(0).datatype));
         // RCLCPP_INFO(this->get_logger(), "pointcloud_map->fields.at(0).count: %s", static_cast<std::string>(pointcloud_map->fields.at(0).name));
@@ -215,10 +215,10 @@ void ElevationMapLoaderNode::update_map(
   while (!is_all_received) {
     request->cached_ids = cached_ids;  //毎回書き換える
     // send a request to map_loader
+    RCLCPP_INFO(this->get_logger(), "send a request to map_loader");
     auto result{pcd_loader_client_->async_send_request(
       request,
       [](rclcpp::Client<autoware_map_msgs::srv::GetDifferentialPointCloudMap>::SharedFuture) {})};
-
     std::future_status status = result.wait_for(std::chrono::seconds(0));
     while (status != std::future_status::ready) {
       RCLCPP_INFO(this->get_logger(), "waiting response");

@@ -63,10 +63,12 @@ bool DifferentialMapLoaderModule::onServiceGetDifferentialPointCloudMap(
   GetDifferentialPointCloudMap::Request::SharedPtr req,
   GetDifferentialPointCloudMap::Response::SharedPtr res)
 {
-  const long long map_upper_limit = 2147473647;  // 一旦ハードコーディングする
-  // const long long map_upper_limit = 1000000000;
+  std::cout << "start onServiceGetDifferentialPointCloudMap" << std::endl;
+  // const long long map_upper_limit = 2147473647;  // 一旦ハードコーディングする
+  const long long map_upper_limit = 1000000000;
   auto area = req->area;
   std::vector<std::string> cached_ids = req->cached_ids;
+  RCLCPP_INFO(logger_, "differential area is loaded");
   differentialAreaLoad(area, cached_ids, res);
 
   res->header.frame_id = "map";
@@ -75,10 +77,12 @@ bool DifferentialMapLoaderModule::onServiceGetDifferentialPointCloudMap(
                                   res->new_pointcloud_with_ids[0].pointcloud.height * 8;
   if (response_pcd_size > map_upper_limit) {
     // res->new_pointcloud_with_idsに残すidsと消すidsを決める
+    RCLCPP_INFO(logger_, "choose ids");
     int use_id_len = std::floor(
       static_cast<int>(res->new_pointcloud_with_ids.size()) /
       std::ceil(map_upper_limit / response_pcd_size));
     // 該当するidsは消す
+    RCLCPP_INFO(logger_, "remove ids");
     res->new_pointcloud_with_ids.erase(
       res->new_pointcloud_with_ids.begin() + use_id_len, res->new_pointcloud_with_ids.end());
   }
