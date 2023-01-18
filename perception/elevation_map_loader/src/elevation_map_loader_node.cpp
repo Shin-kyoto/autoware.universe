@@ -92,19 +92,12 @@ ElevationMapLoaderNode::ElevationMapLoaderNode(const rclcpp::NodeOptions & optio
     {
       pcd_loader_client_ = create_client<autoware_map_msgs::srv::GetDifferentialPointCloudMap>(
         "service/get_differential_pcd_map", rmw_qos_profile_services_default);
-      // const pcl::PointCloud<pcl::PointXYZ>::Ptr pointcloud_map;
       const sensor_msgs::msg::PointCloud2::SharedPtr pointcloud_map(new sensor_msgs::msg::PointCloud2);
       ElevationMapLoaderNode::update_map(pointcloud_map);
       RCLCPP_INFO(this->get_logger(), "receive service with pointcloud_map");
       {
         pcl::PointCloud<pcl::PointXYZ> map_pcl;
-        // RCLCPP_INFO(this->get_logger(), "pointcloud_map->height: %d", static_cast<int>(pointcloud_map->height));
-        // RCLCPP_INFO(this->get_logger(), "pointcloud_map->fields.at(0).count: %d", static_cast<int>(pointcloud_map->fields.at(0).count));
-        // RCLCPP_INFO(this->get_logger(), "pointcloud_map->fields.at(0).count: %d", static_cast<int>(pointcloud_map->fields.at(0).datatype));
-        // RCLCPP_INFO(this->get_logger(), "pointcloud_map->fields.at(0).count: %s", static_cast<std::string>(pointcloud_map->fields.at(0).name));
-
         pcl::fromROSMsg<pcl::PointXYZ>(*pointcloud_map, map_pcl);
-        RCLCPP_INFO(this->get_logger(), "end fromROSMsg");
         data_manager_.map_pcl_ptr_ = pcl::make_shared<pcl::PointCloud<pcl::PointXYZ>>(map_pcl);
       }
     }
