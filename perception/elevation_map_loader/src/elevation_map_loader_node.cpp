@@ -93,7 +93,7 @@ ElevationMapLoaderNode::ElevationMapLoaderNode(const rclcpp::NodeOptions & optio
   if (enable_differential_load) {
     {
       const auto period_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
-        std::chrono::duration<double>(1.0));
+        std::chrono::duration<double>(10.0));
       timer_ = rclcpp::create_timer(
         this, get_clock(), period_ns, std::bind(&ElevationMapLoaderNode::timer_callback, this));
       pcd_loader_client_ = create_client<autoware_map_msgs::srv::GetDifferentialPointCloudMap>(
@@ -226,6 +226,12 @@ void ElevationMapLoaderNode::update_map(
     std::future_status status = result.wait_for(std::chrono::seconds(0));
     while (status != std::future_status::ready) {
       RCLCPP_INFO(this->get_logger(), "waiting response");
+      if(status==std::future_status::ready)
+            std::cout<<"Future is ready"<<std::endl;
+      else if (status==std::future_status::timeout)
+            std::cout<<"Timeout occurred"<<std::endl;
+      else if (status==std::future_status::deferred)
+            std::cout<<"Task is deferred"<<std::endl;
       if (!rclcpp::ok()) {
         return;
       }
@@ -233,6 +239,7 @@ void ElevationMapLoaderNode::update_map(
     }
 
     // 点群地図と，serviceとして渡されてきた差分地図をconcat
+    RCLCPP_INFO(this->get_logger(), "concat maps");
     if (result.get()->new_pointcloud_with_ids.empty()) {  // new_pointcloud_with_idsが空
       is_all_received = true;
     } else {
