@@ -74,19 +74,28 @@ bool DifferentialMapLoaderModule::onServiceGetDifferentialPointCloudMap(
   differentialAreaLoad(area, cached_ids, res);
 
   res->header.frame_id = "map";
-  const long long response_pcd_size = res->new_pointcloud_with_ids.size() *
-                                  res->new_pointcloud_with_ids[0].pointcloud.row_step *
-                                  res->new_pointcloud_with_ids[0].pointcloud.height * 8;
+  long long response_pcd_size = 0;
+  for (const auto& new_pointcloud_with_id : res->new_pointcloud_with_ids) {
+    response_pcd_size += new_pointcloud_with_id.pointcloud.row_step * new_pointcloud_with_id.pointcloud.height * 4;
+  }
+  RCLCPP_INFO(logger_, "response_pcd_size: %lld", response_pcd_size);
   if (response_pcd_size > map_upper_limit) {
     // res->new_pointcloud_with_idsに残すidsと消すidsを決める
     RCLCPP_INFO(logger_, "choose ids");
+    RCLCPP_INFO(logger_, "static_cast<int>(res->new_pointcloud_with_ids.size()): %d", static_cast<int>(res->new_pointcloud_with_ids.size()));
+    RCLCPP_INFO(logger_, "res->new_pointcloud_with_ids[0].pointcloud.row_step: %d", res->new_pointcloud_with_ids[0].pointcloud.row_step);
+    RCLCPP_INFO(logger_, "res->new_pointcloud_with_ids[0].pointcloud.height: %d", res->new_pointcloud_with_ids[0].pointcloud.height);
+    RCLCPP_INFO(logger_, "std::ceil(response_pcd_size / map_upper_limit): %f", std::ceil(response_pcd_size / map_upper_limit));
     int use_id_len = std::floor(
       static_cast<int>(res->new_pointcloud_with_ids.size()) /
-      std::ceil(map_upper_limit / response_pcd_size));
+      std::ceil(response_pcd_size / map_upper_limit));
     // 該当するidsは消す
-    RCLCPP_INFO(logger_, "remove ids");
+    RCLCPP_INFO(logger_, "remove ids:start");
+    RCLCPP_INFO(logger_, "use_id_len: %d", use_id_len);
+    RCLCPP_INFO(logger_, "res->new_pointcloud_with_ids.size(): %ld", res->new_pointcloud_with_ids.size());
     res->new_pointcloud_with_ids.erase(
       res->new_pointcloud_with_ids.begin() + use_id_len, res->new_pointcloud_with_ids.end());
+    RCLCPP_INFO(logger_, "remove ids: finish");
   }
   return true;
 }

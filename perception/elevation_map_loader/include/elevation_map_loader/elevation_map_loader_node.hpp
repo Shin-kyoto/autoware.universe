@@ -70,10 +70,13 @@ private:
   rclcpp::Client<autoware_map_msgs::srv::GetDifferentialPointCloudMap>::SharedPtr
     pcd_loader_client_;
   std::mutex pcd_loader_client_mutex_;
+  rclcpp::TimerBase::SharedPtr timer_;
   bool value_ready_ = false;
   std::condition_variable condition_;
   void onPointcloudMap(const sensor_msgs::msg::PointCloud2::ConstSharedPtr pointcloud_map);
   void onMapHash(const tier4_external_api_msgs::msg::MapHash::ConstSharedPtr map_hash);
+  // void onMapHash_diff(const tier4_external_api_msgs::msg::MapHash::ConstSharedPtr map_hash);
+  void timer_callback();
   void onVectorMap(const autoware_auto_mapping_msgs::msg::HADMapBin::ConstSharedPtr vector_map);
   void update_map(const sensor_msgs::msg::PointCloud2::SharedPtr pointcloud_map);
 
