@@ -92,12 +92,13 @@ ElevationMapLoaderNode::ElevationMapLoaderNode(const rclcpp::NodeOptions & optio
   bool enable_differential_load = true;
   if (enable_differential_load) {
     {
-      const auto period_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
-        std::chrono::duration<double>(10.0));
+      const auto period_ns =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::duration<double>(1.0));
+      group_ = create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+      pcd_loader_client_ = create_client<autoware_map_msgs::srv::GetDifferentialPointCloudMap>(
+        "pcd_loader_service", rmw_qos_profile_services_default, group_);
       timer_ = rclcpp::create_timer(
         this, get_clock(), period_ns, std::bind(&ElevationMapLoaderNode::timer_callback, this));
-      pcd_loader_client_ = create_client<autoware_map_msgs::srv::GetDifferentialPointCloudMap>(
-        "service/get_differential_pcd_map", rmw_qos_profile_services_default);
     }
 
     if (data_manager_.isInitialized()) {
@@ -226,12 +227,12 @@ void ElevationMapLoaderNode::update_map(
     std::future_status status = result.wait_for(std::chrono::seconds(0));
     while (status != std::future_status::ready) {
       RCLCPP_INFO(this->get_logger(), "waiting response");
-      if(status==std::future_status::ready)
-            std::cout<<"Future is ready"<<std::endl;
-      else if (status==std::future_status::timeout)
-            std::cout<<"Timeout occurred"<<std::endl;
-      else if (status==std::future_status::deferred)
-            std::cout<<"Task is deferred"<<std::endl;
+      if (status == std::future_status::ready)
+        std::cout << "Future is ready" << std::endl;
+      else if (status == std::future_status::timeout)
+        std::cout << "Timeout occurred" << std::endl;
+      else if (status == std::future_status::deferred)
+        std::cout << "Task is deferred" << std::endl;
       if (!rclcpp::ok()) {
         return;
       }
@@ -249,7 +250,9 @@ void ElevationMapLoaderNode::update_map(
         } else {
           pointcloud_map->width += new_pointcloud_with_id.pointcloud.width;
           pointcloud_map->row_step += new_pointcloud_with_id.pointcloud.row_step;
-          pointcloud_map->data.insert(pointcloud_map->data.end(), new_pointcloud_with_id.pointcloud.data.begin(), new_pointcloud_with_id.pointcloud.data.end());
+          pointcloud_map->data.insert(
+            pointcloud_map->data.end(), new_pointcloud_with_id.pointcloud.data.begin(),
+            new_pointcloud_with_id.pointcloud.data.end());
         }
         cached_ids.push_back(new_pointcloud_with_id.cell_id);
       }
@@ -289,6 +292,7 @@ void ElevationMapLoaderNode::createElevationMapFromPointcloud()
 
 void ElevationMapLoaderNode::inpaintElevationMap(const float radius)
 {
+  const auto start = std::chrono::high_resolution_clock::now();
   // Convert elevation layer to OpenCV image to fill in holes.
   // Get the inpaint mask (nonzero pixels indicate where values need to be filled in).
   elevation_map_.add("inpaint_mask", 0.0);
@@ -299,25 +303,63 @@ void ElevationMapLoaderNode::inpaintElevationMap(const float radius)
       elevation_map_.at("inpaint_mask", *iterator) = 1.0;
     }
   }
+
+  {
+    const auto stop = std::chrono::high_resolution_clock::now();
+    const auto duration =
+      std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() / 1000.0;
+    RCLCPP_INFO_STREAM(
+      this->get_logger(),
+      "elevation_map_.at(inpaint_mask, *iterator) = 1.0: " << duration << " sec");
+  }
+
   cv::Mat original_image;
   cv::Mat mask;
   cv::Mat filled_image;
   const float min_value = elevation_map_.get(layer_name_).minCoeffOfFinites();
   const float max_value = elevation_map_.get(layer_name_).maxCoeffOfFinites();
 
+  const auto start_convert = std::chrono::high_resolution_clock::now();
   grid_map::GridMapCvConverter::toImage<unsigned char, 3>(
     elevation_map_, layer_name_, CV_8UC3, min_value, max_value, original_image);
   grid_map::GridMapCvConverter::toImage<unsigned char, 1>(
     elevation_map_, "inpaint_mask", CV_8UC1, mask);
 
-  const float radius_in_pixels = radius / elevation_map_.getResolution();
-  cv::inpaint(original_image, mask, filled_image, radius_in_pixels, cv::INPAINT_NS);
+  {
+    const auto stop_convert = std::chrono::high_resolution_clock::now();
+    const auto duration =
+      std::chrono::duration_cast<std::chrono::milliseconds>(stop_convert - start_convert).count() /
+      1000.0;
+    RCLCPP_INFO_STREAM(this->get_logger(), "convert: " << duration << " sec");
+  }
 
+  const auto start_inpaint = std::chrono::high_resolution_clock::now();
+  const float radius_in_pixels = radius / elevation_map_.getResolution();
+  RCLCPP_INFO_STREAM(this->get_logger(), "start cv::inpaint");
+  cv::inpaint(original_image, mask, filled_image, radius_in_pixels, cv::INPAINT_NS);
+  RCLCPP_INFO_STREAM(this->get_logger(), "finish cv::inpaint");
+
+  {
+    const auto stop_inpaint = std::chrono::high_resolution_clock::now();
+    const auto duration =
+      std::chrono::duration_cast<std::chrono::milliseconds>(stop_inpaint - start_inpaint).count() /
+      1000.0;
+    RCLCPP_INFO_STREAM(this->get_logger(), "inpaint: " << duration << " sec");
+  }
+
+  const auto start_addlayer = std::chrono::high_resolution_clock::now();
   grid_map::GridMapCvConverter::addLayerFromImage<unsigned char, 3>(
     filled_image, layer_name_, elevation_map_, min_value, max_value);
   elevation_map_.erase("inpaint_mask");
+  {
+    const auto stop_addlayer = std::chrono::high_resolution_clock::now();
+    const auto duration =
+      std::chrono::duration_cast<std::chrono::milliseconds>(stop_addlayer - start_addlayer)
+        .count() /
+      1000.0;
+    RCLCPP_INFO_STREAM(this->get_logger(), "addlayer: " << duration << " sec");
+  }
 }
-
 tier4_autoware_utils::LinearRing2d ElevationMapLoaderNode::getConvexHull(
   const pcl::PointCloud<pcl::PointXYZ>::Ptr & input_cloud)
 {

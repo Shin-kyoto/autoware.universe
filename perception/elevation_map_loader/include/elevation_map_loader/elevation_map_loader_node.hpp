@@ -70,6 +70,7 @@ private:
   rclcpp::Client<autoware_map_msgs::srv::GetDifferentialPointCloudMap>::SharedPtr
     pcd_loader_client_;
   std::mutex pcd_loader_client_mutex_;
+  rclcpp::CallbackGroup::SharedPtr group_;
   rclcpp::TimerBase::SharedPtr timer_;
   bool value_ready_ = false;
   std::condition_variable condition_;

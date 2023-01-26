@@ -66,33 +66,45 @@ bool DifferentialMapLoaderModule::onServiceGetDifferentialPointCloudMap(
 {
   std::cout << "start onServiceGetDifferentialPointCloudMap" << std::endl;
   RCLCPP_INFO(logger_, "start onServiceGetDifferentialPointCloudMap");
-  // const long long map_upper_limit = 2147473647;  // 一旦ハードコーディングする
-  const long long map_upper_limit = 1000000000;
+  const double map_upper_limit = 2147473647;  // 一旦ハードコーディングする
+  // const long long map_upper_limit = 1000000000;
   auto area = req->area;
   std::vector<std::string> cached_ids = req->cached_ids;
   RCLCPP_INFO(logger_, "differential area is loaded");
   differentialAreaLoad(area, cached_ids, res);
 
   res->header.frame_id = "map";
-  long long response_pcd_size = 0;
-  for (const auto& new_pointcloud_with_id : res->new_pointcloud_with_ids) {
-    response_pcd_size += new_pointcloud_with_id.pointcloud.row_step * new_pointcloud_with_id.pointcloud.height * 4;
+  double response_pcd_size = 0;
+  for (const auto & new_pointcloud_with_id : res->new_pointcloud_with_ids) {
+    response_pcd_size +=
+      new_pointcloud_with_id.pointcloud.row_step * new_pointcloud_with_id.pointcloud.height;
   }
-  RCLCPP_INFO(logger_, "response_pcd_size: %lld", response_pcd_size);
+  RCLCPP_INFO(logger_, "response_pcd_size: %f", response_pcd_size);
   if (response_pcd_size > map_upper_limit) {
     // res->new_pointcloud_with_idsに残すidsと消すidsを決める
     RCLCPP_INFO(logger_, "choose ids");
-    RCLCPP_INFO(logger_, "static_cast<int>(res->new_pointcloud_with_ids.size()): %d", static_cast<int>(res->new_pointcloud_with_ids.size()));
-    RCLCPP_INFO(logger_, "res->new_pointcloud_with_ids[0].pointcloud.row_step: %d", res->new_pointcloud_with_ids[0].pointcloud.row_step);
-    RCLCPP_INFO(logger_, "res->new_pointcloud_with_ids[0].pointcloud.height: %d", res->new_pointcloud_with_ids[0].pointcloud.height);
-    RCLCPP_INFO(logger_, "std::ceil(response_pcd_size / map_upper_limit): %f", std::ceil(response_pcd_size / map_upper_limit));
+    RCLCPP_INFO(
+      logger_, "static_cast<int>(res->new_pointcloud_with_ids.size()): %d",
+      static_cast<int>(res->new_pointcloud_with_ids.size()));
+    RCLCPP_INFO(
+      logger_, "res->new_pointcloud_with_ids[0].pointcloud.row_step: %d",
+      res->new_pointcloud_with_ids[0].pointcloud.row_step);
+    RCLCPP_INFO(
+      logger_, "res->new_pointcloud_with_ids[0].pointcloud.height: %d",
+      res->new_pointcloud_with_ids[0].pointcloud.height);
+    RCLCPP_INFO(
+      logger_, "response_pcd_size / map_upper_limit: %f", response_pcd_size / map_upper_limit);
+    RCLCPP_INFO(
+      logger_, "std::ceil(response_pcd_size / map_upper_limit): %f",
+      std::ceil(response_pcd_size / map_upper_limit));
     int use_id_len = std::floor(
       static_cast<int>(res->new_pointcloud_with_ids.size()) /
       std::ceil(response_pcd_size / map_upper_limit));
     // 該当するidsは消す
     RCLCPP_INFO(logger_, "remove ids:start");
     RCLCPP_INFO(logger_, "use_id_len: %d", use_id_len);
-    RCLCPP_INFO(logger_, "res->new_pointcloud_with_ids.size(): %ld", res->new_pointcloud_with_ids.size());
+    RCLCPP_INFO(
+      logger_, "res->new_pointcloud_with_ids.size(): %ld", res->new_pointcloud_with_ids.size());
     res->new_pointcloud_with_ids.erase(
       res->new_pointcloud_with_ids.begin() + use_id_len, res->new_pointcloud_with_ids.end());
     RCLCPP_INFO(logger_, "remove ids: finish");

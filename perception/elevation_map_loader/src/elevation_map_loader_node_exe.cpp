@@ -14,8 +14,6 @@
 
 #include "elevation_map_loader/elevation_map_loader_node.hpp"
 
-#include <chrono>
-
 #include <grid_map_core/GridMap.hpp>
 #include <grid_map_cv/InpaintFilter.hpp>
 #include <grid_map_pcl/GridMapPclLoader.hpp>
@@ -36,6 +34,7 @@
 #include <pcl_conversions/pcl_conversions.h>
 #include <sensor_msgs/msg/point_cloud2.h>
 
+#include <chrono>
 #include <filesystem>
 #include <memory>
 #include <string>
@@ -55,9 +54,12 @@ int main(int argc, char ** argv)
   rclcpp::NodeOptions node_options;
 
   auto node = std::make_shared<ElevationMapLoaderNode>(node_options);
-  rclcpp::sleep_for(20s);
+  rclcpp::executors::MultiThreadedExecutor exec;
+  exec.add_node(node);
+  exec.spin();
+  // rclcpp::sleep_for(20s);
   // rclcpp::spin_some(node);
-  rclcpp::spin(node);
+  // rclcpp::spin(node);
 
   rclcpp::shutdown();
 
