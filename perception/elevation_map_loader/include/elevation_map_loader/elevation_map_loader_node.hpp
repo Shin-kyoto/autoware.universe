@@ -43,15 +43,25 @@ public:
   DataManager() = default;
   bool isInitialized()
   {
-    if (use_lane_filter_) {
-      return static_cast<bool>(elevation_map_path_) && static_cast<bool>(map_pcl_ptr_) &&
-             static_cast<bool>(lanelet_map_ptr_);
+    if (use_incremental_generation_) {
+      if (use_lane_filter_) {
+        return static_cast<bool>(elevation_map_path_) && static_cast<bool>(map_pcl_vector_ptr_) &&
+               static_cast<bool>(lanelet_map_ptr_);
+      } else {
+        return static_cast<bool>(elevation_map_path_) && static_cast<bool>(map_pcl_vector_ptr_);
+      }
     } else {
-      return static_cast<bool>(elevation_map_path_) && static_cast<bool>(map_pcl_ptr_);
+      if (use_lane_filter_) {
+        return static_cast<bool>(elevation_map_path_) && static_cast<bool>(map_pcl_ptr_) &&
+               static_cast<bool>(lanelet_map_ptr_);
+      } else {
+        return static_cast<bool>(elevation_map_path_) && static_cast<bool>(map_pcl_ptr_);
+      }
     }
   }
   std::unique_ptr<std::filesystem::path> elevation_map_path_;
   pcl::PointCloud<pcl::PointXYZ>::Ptr map_pcl_ptr_;
+  std::vector<pcl::PointCloud<pcl::PointXYZ>>::Ptr map_pcl_vector_ptr_;
   lanelet::LaneletMapPtr lanelet_map_ptr_;
   bool use_lane_filter_ = false;
 };
@@ -78,10 +88,14 @@ private:
   void onMapHash(const tier4_external_api_msgs::msg::MapHash::ConstSharedPtr map_hash);
   void timer_callback();
   void onVectorMap(const autoware_auto_mapping_msgs::msg::HADMapBin::ConstSharedPtr vector_map);
-  void update_map(const sensor_msgs::msg::PointCloud2::SharedPtr pointcloud_map);
+  void receive_map(const pcl::PointCloud<pcl::PointXYZ>::SharedPtr pointcloud_map);
+  void receive_map_vector(
+    const std::vector<pcl::PointCloud<pcl::PointXYZ>>::SharedPtr pointcloud_map_vector);
 
   void publish();
   void createElevationMap();
+  grid_map::GridMap createElevationMap_incremental(pcl::PointCloud<pcl::PointXYZ> map_pcl);
+  void create_elevation_map();
   void setVerbosityLevelToDebugIfFlagSet();
   void createElevationMapFromPointcloud();
   tier4_autoware_utils::LinearRing2d getConvexHull(
@@ -105,6 +119,7 @@ private:
   std::string map_frame_;
   std::string elevation_map_directory_;
   bool use_inpaint_;
+  bool use_incremental_generation_;
   float inpaint_radius_;
   bool use_elevation_map_cloud_publisher_;
   pcl::shared_ptr<grid_map::GridMapPclLoader> grid_map_pcl_loader_;
