@@ -97,7 +97,7 @@ private:
   void createElevationMap();
   grid_map::GridMap createElevationMap_incremental(pcl::PointCloud<pcl::PointXYZ>::Ptr map_pcl);
   void create_elevation_map();
-  std::tuple <double, double, double, double> get_bound();
+  std::tuple<double, double, double, double> get_bound();
   void setVerbosityLevelToDebugIfFlagSet();
   void createElevationMapFromPointcloud();
   tier4_autoware_utils::LinearRing2d getConvexHull(

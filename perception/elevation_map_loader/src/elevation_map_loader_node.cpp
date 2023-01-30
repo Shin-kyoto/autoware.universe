@@ -349,7 +349,7 @@ void ElevationMapLoaderNode::create_elevation_map()
   }
 }
 
-std::tuple <double, double, double, double> ElevationMapLoaderNode::get_bound()
+std::tuple<double, double, double, double> ElevationMapLoaderNode::get_bound()
 {
   bool bound_flag = false;  // TODO(Shin-kyoto): bound_flagは暫定対応．boundがdoubleかどうかも確認
   double all_max_bound_x = 0.0;
