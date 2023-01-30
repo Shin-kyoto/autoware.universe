@@ -61,7 +61,7 @@ public:
   }
   std::unique_ptr<std::filesystem::path> elevation_map_path_;
   pcl::PointCloud<pcl::PointXYZ>::Ptr map_pcl_ptr_;
-  std::shared_ptr<std::vector<pcl::PointCloud<pcl::PointXYZ>>> map_pcl_vector_ptr_;
+  std::shared_ptr<std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>> map_pcl_vector_ptr_;
   lanelet::LaneletMapPtr lanelet_map_ptr_;
   bool use_lane_filter_ = false;
   bool use_incremental_generation_ = true;
@@ -91,11 +91,11 @@ private:
   void onVectorMap(const autoware_auto_mapping_msgs::msg::HADMapBin::ConstSharedPtr vector_map);
   void receive_map(const pcl::PointCloud<pcl::PointXYZ>::Ptr pointcloud_map);
   void receive_map_vector(
-    const std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> pointcloud_map_vector);
+    const std::shared_ptr<std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>> pointcloud_map_vector);
 
   void publish();
   void createElevationMap();
-  grid_map::GridMap createElevationMap_incremental(pcl::PointCloud<pcl::PointXYZ> map_pcl);
+  grid_map::GridMap createElevationMap_incremental(pcl::PointCloud<pcl::PointXYZ>::Ptr map_pcl);
   void create_elevation_map();
   std::tuple <double, double, double, double> get_bound();
   void setVerbosityLevelToDebugIfFlagSet();
