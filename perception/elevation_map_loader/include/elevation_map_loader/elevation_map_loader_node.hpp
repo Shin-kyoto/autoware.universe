@@ -89,9 +89,8 @@ private:
   void onMapHash(const tier4_external_api_msgs::msg::MapHash::ConstSharedPtr map_hash);
   void timer_callback();
   void onVectorMap(const autoware_auto_mapping_msgs::msg::HADMapBin::ConstSharedPtr vector_map);
-  void receive_map(const pcl::PointCloud<pcl::PointXYZ>::Ptr pointcloud_map);
-  void receive_map_vector(
-    const std::shared_ptr<std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>> pointcloud_map_vector);
+  void receive_map();
+  void receive_map_vector();
 
   void publish();
   void createElevationMap();

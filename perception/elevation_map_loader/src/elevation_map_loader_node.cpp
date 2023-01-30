@@ -117,7 +117,8 @@ void ElevationMapLoaderNode::publish()
   struct stat info;
   if (stat(data_manager_.elevation_map_path_->c_str(), &info) != 0) {
     RCLCPP_INFO(this->get_logger(), "Create elevation map from pointcloud map ");
-    createElevationMap();
+    create_elevation_map();
+    RCLCPP_INFO(this->get_logger(), "Finish creating elevation map from pointcloud map. Start inpaint");
     if (use_inpaint_) {
       inpaintElevationMap(inpaint_radius_);
     }
@@ -143,7 +144,7 @@ void ElevationMapLoaderNode::publish()
       std::filesystem::remove_all(data_manager_.elevation_map_path_->c_str());
       // Create elevation map from pointcloud map if bag is broken
       RCLCPP_INFO(this->get_logger(), "Create elevation map from pointcloud map ");
-      createElevationMap();
+      create_elevation_map();
       if (use_inpaint_) {
         inpaintElevationMap(inpaint_radius_);
       }
@@ -169,16 +170,15 @@ void ElevationMapLoaderNode::timer_callback()
   {
     if (use_incremental_generation_) {
       // std::shared_ptr<std::vector<pcl::PointCloud<pcl::PointXYZ>>> map_pcl_vector;
-      ElevationMapLoaderNode::receive_map_vector(data_manager_.map_pcl_vector_ptr_);
+      ElevationMapLoaderNode::receive_map_vector();
       RCLCPP_INFO(this->get_logger(), "receive service with pointcloud_map");
       // data_manager_.map_pcl_vector_ptr_ =
       //   pcl::make_shared<std::vector<pcl::PointCloud<pcl::PointXYZ>>>(map_pcl_vector);
     } else {
-      pcl::PointCloud<pcl::PointXYZ>::Ptr map_pcl;
-      ElevationMapLoaderNode::receive_map(map_pcl);
+      ElevationMapLoaderNode::receive_map();
       RCLCPP_INFO(this->get_logger(), "receive service with pointcloud_map");
-      data_manager_.map_pcl_ptr_ = pcl::make_shared<pcl::PointCloud<pcl::PointXYZ>>(*map_pcl);
     }
+    RCLCPP_INFO(this->get_logger(), "data_manager_.isInitialized(): %d", data_manager_.isInitialized());
   }
   if (data_manager_.isInitialized()) {
     publish();
@@ -223,8 +223,9 @@ void ElevationMapLoaderNode::onVectorMap(
   }
 }
 
-void ElevationMapLoaderNode::receive_map(const pcl::PointCloud<pcl::PointXYZ>::Ptr map_pcl)
+void ElevationMapLoaderNode::receive_map()
 {
+  pcl::PointCloud<pcl::PointXYZ> map_pcl;
   sensor_msgs::msg::PointCloud2 pointcloud_map;
   // create a loading request with mode = 1
   auto request = std::make_shared<autoware_map_msgs::srv::GetDifferentialPointCloudMap::Request>();
@@ -250,6 +251,7 @@ void ElevationMapLoaderNode::receive_map(const pcl::PointCloud<pcl::PointXYZ>::P
 
     RCLCPP_INFO(this->get_logger(), "concat maps");
     if (result.get()->new_pointcloud_with_ids.empty()) {  // new_pointcloud_with_idsが空
+      RCLCPP_INFO(this->get_logger(), "finish receiving");
       is_all_received = true;
     } else {
       // concat maps
@@ -260,19 +262,26 @@ void ElevationMapLoaderNode::receive_map(const pcl::PointCloud<pcl::PointXYZ>::P
         } else {
           pointcloud_map.width += new_pointcloud_with_id.pointcloud.width;
           pointcloud_map.row_step += new_pointcloud_with_id.pointcloud.row_step;
+          RCLCPP_INFO(this->get_logger(), "start insert");
           pointcloud_map.data.insert(
             pointcloud_map.data.end(), new_pointcloud_with_id.pointcloud.data.begin(),
             new_pointcloud_with_id.pointcloud.data.end());
+          RCLCPP_INFO(this->get_logger(), "end insert");
         }
+        RCLCPP_INFO(this->get_logger(), "start push back");
         cached_ids.push_back(new_pointcloud_with_id.cell_id);
+        RCLCPP_INFO(this->get_logger(), "end push back");
       }
     }
   }
-  pcl::fromROSMsg<pcl::PointXYZ>(pointcloud_map, *map_pcl);
+  RCLCPP_INFO(this->get_logger(), "start pcl::fromROSMsg");
+  pcl::fromROSMsg<pcl::PointXYZ>(pointcloud_map, map_pcl);
+  data_manager_.map_pcl_ptr_ = pcl::make_shared<pcl::PointCloud<pcl::PointXYZ>>(map_pcl);
+  RCLCPP_INFO(this->get_logger(), "end pcl::fromROSMsg");
+
 }
 
-void ElevationMapLoaderNode::receive_map_vector(
-  const std::shared_ptr<std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>> pointcloud_map_vector)
+void ElevationMapLoaderNode::receive_map_vector()
 {
   // create a loading request with mode = 1
   auto request = std::make_shared<autoware_map_msgs::srv::GetDifferentialPointCloudMap::Request>();
@@ -296,15 +305,16 @@ void ElevationMapLoaderNode::receive_map_vector(
       status = result.wait_for(std::chrono::seconds(1));
     }
 
-    RCLCPP_INFO(this->get_logger(), "concat maps");
     if (result.get()->new_pointcloud_with_ids.empty()) {  // new_pointcloud_with_idsが空
       is_all_received = true;
     } else {
       // vectorにまとめる
       for (const auto & new_pointcloud_with_id : result.get()->new_pointcloud_with_ids) {
-        pcl::PointCloud<pcl::PointXYZ>::Ptr map_pcl;
-        pcl::fromROSMsg<pcl::PointXYZ>(new_pointcloud_with_id.pointcloud, *map_pcl);
-        pointcloud_map_vector->push_back(map_pcl);
+        pcl::PointCloud<pcl::PointXYZ> map_pcl;
+        RCLCPP_INFO(this->get_logger(), "start pcl::fromROSMsg");
+        pcl::fromROSMsg<pcl::PointXYZ>(new_pointcloud_with_id.pointcloud, map_pcl);
+        RCLCPP_INFO(this->get_logger(), "end pcl::fromROSMsg");
+        data_manager_.map_pcl_vector_ptr_->push_back(pcl::make_shared<pcl::PointCloud<pcl::PointXYZ>>(map_pcl));
         cached_ids.push_back(new_pointcloud_with_id.cell_id);
       }
     }
