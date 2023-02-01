@@ -90,7 +90,8 @@ private:
   void timer_callback();
   void onVectorMap(const autoware_auto_mapping_msgs::msg::HADMapBin::ConstSharedPtr vector_map);
   void receive_map();
-  void receive_map_vector();
+  void receive_map_vector(
+    const std::shared_ptr<std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>> pointcloud_map_vector);
 
   void publish();
   void createElevationMap();
@@ -124,6 +125,7 @@ private:
   float inpaint_radius_;
   bool use_elevation_map_cloud_publisher_;
   pcl::shared_ptr<grid_map::GridMapPclLoader> grid_map_pcl_loader_;
+  bool finish_pub_elevation_map_ = false;
 
   DataManager data_manager_;
   struct LaneFilter
