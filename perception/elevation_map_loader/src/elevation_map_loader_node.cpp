@@ -60,7 +60,8 @@ ElevationMapLoaderNode::ElevationMapLoaderNode(const rclcpp::NodeOptions & optio
   elevation_map_directory_ = this->declare_parameter("elevation_map_directory", "path_default");
   const bool use_lane_filter = this->declare_parameter("use_lane_filter", false);
   data_manager_.use_lane_filter_ = use_lane_filter;
-  // data_manager_.map_pcl_vector_ptr_ = std::make_shared<std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>>();
+  // data_manager_.map_pcl_vector_ptr_ =
+  // std::make_shared<std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>>();
 
   lane_filter_.use_lane_filter_ = use_lane_filter;
   lane_filter_.lane_margin_ = this->declare_parameter("lane_margin", 0.5);
@@ -119,7 +120,8 @@ void ElevationMapLoaderNode::publish()
   if (stat(data_manager_.elevation_map_path_->c_str(), &info) != 0) {
     RCLCPP_INFO(this->get_logger(), "Create elevation map from pointcloud map ");
     create_elevation_map();
-    RCLCPP_INFO(this->get_logger(), "Finish creating elevation map from pointcloud map. Start inpaint");
+    RCLCPP_INFO(
+      this->get_logger(), "Finish creating elevation map from pointcloud map. Start inpaint");
     if (use_inpaint_) {
       inpaintElevationMap(inpaint_radius_);
     }
@@ -171,8 +173,10 @@ void ElevationMapLoaderNode::timer_callback()
 {
   {
     if (use_incremental_generation_) {
-      if (!finish_pub_elevation_map_){
-        std::shared_ptr<std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>> map_pcl_vector = std::make_shared<std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>>();;
+      if (!finish_pub_elevation_map_) {
+        std::shared_ptr<std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>> map_pcl_vector =
+          std::make_shared<std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>>();
+        ;
         ElevationMapLoaderNode::receive_map_vector(map_pcl_vector);
         RCLCPP_INFO(this->get_logger(), "receive service with pointcloud_map");
         data_manager_.map_pcl_vector_ptr_ =
@@ -182,7 +186,8 @@ void ElevationMapLoaderNode::timer_callback()
       ElevationMapLoaderNode::receive_map();
       RCLCPP_INFO(this->get_logger(), "receive service with pointcloud_map");
     }
-    RCLCPP_INFO(this->get_logger(), "data_manager_.isInitialized(): %d", data_manager_.isInitialized());
+    RCLCPP_INFO(
+      this->get_logger(), "data_manager_.isInitialized(): %d", data_manager_.isInitialized());
   }
   if (data_manager_.isInitialized() && !finish_pub_elevation_map_) {
     publish();
@@ -282,7 +287,6 @@ void ElevationMapLoaderNode::receive_map()
   pcl::fromROSMsg<pcl::PointXYZ>(pointcloud_map, map_pcl);
   data_manager_.map_pcl_ptr_ = pcl::make_shared<pcl::PointCloud<pcl::PointXYZ>>(map_pcl);
   RCLCPP_INFO(this->get_logger(), "end pcl::fromROSMsg");
-
 }
 
 void ElevationMapLoaderNode::receive_map_vector(
@@ -319,10 +323,13 @@ void ElevationMapLoaderNode::receive_map_vector(
         RCLCPP_INFO(this->get_logger(), "start pcl::fromROSMsg");
         pcl::fromROSMsg<pcl::PointXYZ>(new_pointcloud_with_id.pointcloud, map_pcl);
         RCLCPP_INFO(this->get_logger(), "end pcl::fromROSMsg");
-        const pcl::PointCloud<pcl::PointXYZ>::Ptr map_pcl_ptr = pcl::make_shared<pcl::PointCloud<pcl::PointXYZ>>(map_pcl);
-        RCLCPP_INFO(this->get_logger(), "end pcl::make_shared<pcl::PointCloud<pcl::PointXYZ>>(map_pcl);");
+        const pcl::PointCloud<pcl::PointXYZ>::Ptr map_pcl_ptr =
+          pcl::make_shared<pcl::PointCloud<pcl::PointXYZ>>(map_pcl);
+        RCLCPP_INFO(
+          this->get_logger(), "end pcl::make_shared<pcl::PointCloud<pcl::PointXYZ>>(map_pcl);");
         pointcloud_map_vector->push_back(map_pcl_ptr);
-        RCLCPP_INFO(this->get_logger(), "start cached_ids.push_back(new_pointcloud_with_id.cell_id);");
+        RCLCPP_INFO(
+          this->get_logger(), "start cached_ids.push_back(new_pointcloud_with_id.cell_id);");
         cached_ids.push_back(new_pointcloud_with_id.cell_id);
       }
     }
@@ -341,7 +348,9 @@ void ElevationMapLoaderNode::create_elevation_map()
       std::tie(max_bound_x, max_bound_y, min_bound_x, min_bound_y) = get_bound();
 
       std::vector<grid_map::GridMap> grid_map_vector;
-      RCLCPP_INFO(this->get_logger(), "*data_manager_.map_pcl_vector_ptr_.size() %d", static_cast<int>(data_manager_.map_pcl_vector_ptr_->size()));
+      RCLCPP_INFO(
+        this->get_logger(), "*data_manager_.map_pcl_vector_ptr_.size() %d",
+        static_cast<int>(data_manager_.map_pcl_vector_ptr_->size()));
       for (const auto & map_pcl : *data_manager_.map_pcl_vector_ptr_) {
         // RCLCPP_INFO(this->get_logger(), "pointcloud to grid_map");
         grid_map_vector.push_back(createElevationMap_incremental(map_pcl));
@@ -349,10 +358,10 @@ void ElevationMapLoaderNode::create_elevation_map()
       RCLCPP_INFO(this->get_logger(), "get length and center position");
       grid_map::Length length =
         grid_map::Length(max_bound_x - min_bound_x, max_bound_y - min_bound_y);
-      double resolution = 0.3; // elevation_map_.getResolution();  // node paramから取るべき
+      double resolution = 0.3;  // elevation_map_.getResolution();  // node paramから取るべき
       grid_map::Position position =
         grid_map::Position((max_bound_x + min_bound_x) / 2.0, (max_bound_y + min_bound_y) / 2.0);
-      
+
       elevation_map_.clearAll();
       RCLCPP_INFO(this->get_logger(), "set elevation_map's geometry");
       elevation_map_.setGeometry(length, resolution, position);
@@ -375,12 +384,15 @@ void ElevationMapLoaderNode::create_elevation_map()
           const grid_map::Index index(
             grid_map::getIndexFromLinearIndex(linearIndex, grid_map.getSize()));
           // 各grid_mapのセルのデータを，elevation_map全体における，セルに格納していく
-          RCLCPP_INFO(this->get_logger(), "start move cell value: index(0) %d, index(1) %d", index(0), index(1));
+          RCLCPP_INFO(
+            this->get_logger(), "start move cell value: index(0) %d, index(1) %d", index(0),
+            index(1));
           grid_map::Position position;
           grid_map.getPosition(index, position);
           grid_map::Index index_all;
           elevation_map_.getIndex(position, index_all);
-          elevation_map_.get(layer_name_)(index_all(0), index_all(1)) = (gridMapData)(index(0), index(1));
+          elevation_map_.get(layer_name_)(index_all(0), index_all(1)) =
+            (gridMapData)(index(0), index(1));
         }
       }
     }
@@ -503,6 +515,8 @@ void ElevationMapLoaderNode::inpaintElevationMap(const float radius)
     elevation_map_, layer_name_, CV_8UC3, min_value, max_value, original_image);
   grid_map::GridMapCvConverter::toImage<unsigned char, 1>(
     elevation_map_, "inpaint_mask", CV_8UC1, mask);
+  cv::imwrite("original_image.jpg", original_image);
+  cv::imwrite("mask.jpg", mask);
 
   {
     const auto stop_convert = std::chrono::high_resolution_clock::now();
