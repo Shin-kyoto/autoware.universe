@@ -22,7 +22,7 @@
 #include <rclcpp/logger.hpp>
 
 #include <grid_map_msgs/msg/grid_map.hpp>
-
+#include <grid_map_utils/polygon_iterator.hpp>
 #include <boost/geometry/algorithms/convex_hull.hpp>
 #include <boost/geometry/algorithms/intersects.hpp>
 #include <boost/iostreams/device/mapped_file.hpp>
@@ -186,8 +186,8 @@ void ElevationMapLoaderNode::timer_callback()
       ElevationMapLoaderNode::receive_map();
       RCLCPP_INFO(this->get_logger(), "receive service with pointcloud_map");
     }
-    RCLCPP_INFO(
-      this->get_logger(), "data_manager_.isInitialized(): %d", data_manager_.isInitialized());
+    // RCLCPP_INFO(
+    //   this->get_logger(), "data_manager_.isInitialized(): %d", data_manager_.isInitialized());
   }
   if (data_manager_.isInitialized() && !finish_pub_elevation_map_) {
     publish();
@@ -380,13 +380,13 @@ void ElevationMapLoaderNode::create_elevation_map()
         grid_map::Matrix gridMapData = grid_map.get("elevation_");
         unsigned int linearGridMapSize = grid_map.getSize().prod();
         for (unsigned int linearIndex = 0; linearIndex < linearGridMapSize; ++linearIndex) {
-          RCLCPP_INFO(this->get_logger(), "move each grid_map to all grid_map");
+          // RCLCPP_INFO(this->get_logger(), "move each grid_map to all grid_map");
           const grid_map::Index index(
             grid_map::getIndexFromLinearIndex(linearIndex, grid_map.getSize()));
           // 各grid_mapのセルのデータを，elevation_map全体における，セルに格納していく
-          RCLCPP_INFO(
-            this->get_logger(), "start move cell value: index(0) %d, index(1) %d", index(0),
-            index(1));
+          // RCLCPP_INFO(
+          //   this->get_logger(), "start move cell value: index(0) %d, index(1) %d", index(0),
+          //   index(1));
           grid_map::Position position;
           grid_map.getPosition(index, position);
           grid_map::Index index_all;
@@ -488,12 +488,20 @@ void ElevationMapLoaderNode::inpaintElevationMap(const float radius)
   // Get the inpaint mask (nonzero pixels indicate where values need to be filled in).
   elevation_map_.add("inpaint_mask", 0.0);
 
+  
   elevation_map_.setBasicLayers(std::vector<std::string>());
   for (grid_map::GridMapIterator iterator(elevation_map_); !iterator.isPastEnd(); ++iterator) {
     if (!elevation_map_.isValid(*iterator, layer_name_)) {
       elevation_map_.at("inpaint_mask", *iterator) = 1.0;
     }
   }
+
+  // grid_map::Polygon lanelet_polygon;
+  // for (grid_map_utils::PolygonIterator iterator(elevation_map_, lanelet_polygon); !iterator.isPastEnd(); ++iterator) {
+  //   if (!elevation_map_.isValid(*iterator, layer_name_)) {
+  //     elevation_map_.at("inpaint_mask", *iterator) = 1.0;
+  //   }
+  // }
 
   {
     const auto stop = std::chrono::high_resolution_clock::now();
@@ -528,8 +536,12 @@ void ElevationMapLoaderNode::inpaintElevationMap(const float radius)
 
   const auto start_inpaint = std::chrono::high_resolution_clock::now();
   const float radius_in_pixels = radius / elevation_map_.getResolution();
+  RCLCPP_INFO_STREAM(this->get_logger(), "radius_in_pixels: %f" << radius_in_pixels);
   RCLCPP_INFO_STREAM(this->get_logger(), "start cv::inpaint");
-  cv::inpaint(original_image, mask, filled_image, radius_in_pixels, cv::INPAINT_NS);
+  // cv::inpaint(original_image, mask, filled_image, radius_in_pixels, cv::INPAINT_NS);
+  cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size( 2*radius_in_pixels + 1, 2*radius_in_pixels + 1 ), cv::Point( radius_in_pixels, radius_in_pixels ) );
+  cv::morphologyEx(original_image, filled_image, cv::MORPH_CLOSE, kernel);
+  cv::imwrite("filled_image.jpg", filled_image);
   RCLCPP_INFO_STREAM(this->get_logger(), "finish cv::inpaint");
 
   {
