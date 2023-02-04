@@ -19,10 +19,11 @@
 #include <grid_map_pcl/GridMapPclLoader.hpp>
 #include <grid_map_pcl/helpers.hpp>
 #include <grid_map_ros/GridMapRosConverter.hpp>
+#include <grid_map_utils/polygon_iterator.hpp>
 #include <rclcpp/logger.hpp>
 
 #include <grid_map_msgs/msg/grid_map.hpp>
-#include <grid_map_utils/polygon_iterator.hpp>
+
 #include <boost/geometry/algorithms/convex_hull.hpp>
 #include <boost/geometry/algorithms/intersects.hpp>
 #include <boost/iostreams/device/mapped_file.hpp>
@@ -488,7 +489,6 @@ void ElevationMapLoaderNode::inpaintElevationMap(const float radius)
   // Get the inpaint mask (nonzero pixels indicate where values need to be filled in).
   elevation_map_.add("inpaint_mask", 0.0);
 
-  
   elevation_map_.setBasicLayers(std::vector<std::string>());
   for (grid_map::GridMapIterator iterator(elevation_map_); !iterator.isPastEnd(); ++iterator) {
     if (!elevation_map_.isValid(*iterator, layer_name_)) {
@@ -497,7 +497,8 @@ void ElevationMapLoaderNode::inpaintElevationMap(const float radius)
   }
 
   // grid_map::Polygon lanelet_polygon;
-  // for (grid_map_utils::PolygonIterator iterator(elevation_map_, lanelet_polygon); !iterator.isPastEnd(); ++iterator) {
+  // for (grid_map_utils::PolygonIterator iterator(elevation_map_, lanelet_polygon);
+  // !iterator.isPastEnd(); ++iterator) {
   //   if (!elevation_map_.isValid(*iterator, layer_name_)) {
   //     elevation_map_.at("inpaint_mask", *iterator) = 1.0;
   //   }
@@ -535,12 +536,14 @@ void ElevationMapLoaderNode::inpaintElevationMap(const float radius)
   }
 
   const auto start_inpaint = std::chrono::high_resolution_clock::now();
-  const float radius_in_pixels = radius / elevation_map_.getResolution();
+  const float radius_in_pixels = 2 * radius / elevation_map_.getResolution();
   RCLCPP_INFO_STREAM(this->get_logger(), "radius_in_pixels: %f" << radius_in_pixels);
   RCLCPP_INFO_STREAM(this->get_logger(), "start cv::inpaint");
   // cv::inpaint(original_image, mask, filled_image, radius_in_pixels, cv::INPAINT_NS);
-  cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size( 2*radius_in_pixels + 1, 2*radius_in_pixels + 1 ), cv::Point( radius_in_pixels, radius_in_pixels ) );
-  cv::morphologyEx(original_image, filled_image, cv::MORPH_CLOSE, kernel);
+  cv::Mat kernel = cv::getStructuringElement(
+    cv::MORPH_ELLIPSE, cv::Size(2 * radius_in_pixels + 1, 2 * radius_in_pixels + 1),
+    cv::Point(radius_in_pixels, radius_in_pixels));
+  cv::morphologyEx(original_image, filled_image, cv::MORPH_CLOSE, kernel, cv::Point(-1, -1), 2);
   cv::imwrite("filled_image.jpg", filled_image);
   RCLCPP_INFO_STREAM(this->get_logger(), "finish cv::inpaint");
 
