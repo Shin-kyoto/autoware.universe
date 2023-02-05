@@ -508,12 +508,12 @@ void ElevationMapLoaderNode::inpaintElevationMap(const float radius)
   //      !iterator.isPastEnd(); ++iterator) {
   for (grid_map::GridMapIterator iterator(elevation_map_); !iterator.isPastEnd(); ++iterator) {
     if (!elevation_map_.isValid(*iterator, layer_name_)) {
-      RCLCPP_INFO(this->get_logger(), "iterator 0: %d", (*iterator)(0));
-      RCLCPP_INFO(this->get_logger(), "iterator 1: %d", (*iterator)(1));
       grid_map::Position position;
       elevation_map_.getPosition(*iterator, position);
       if (checkPointWithinLanelets(
-            pcl::PointXYZ(position.x, position.y, 0.0), lane_filter_.road_lanelets_)) {
+            pcl::PointXYZ(position.x(), position.y(), 0.0), lane_filter_.road_lanelets_)) {
+        RCLCPP_INFO(this->get_logger(), "iterator 0: %d", (*iterator)(0));
+        RCLCPP_INFO(this->get_logger(), "iterator 1: %d", (*iterator)(1));
         elevation_map_.at("inpaint_mask", *iterator) = 1.0;
       }
     }
@@ -575,9 +575,9 @@ void ElevationMapLoaderNode::inpaintElevationMap(const float radius)
     grid_map::Position position;
     elevation_map_.getPosition(*iterator, position);
     if (checkPointWithinLanelets(
-          pcl::PointXYZ(position.x, position.y, 0.0), lane_filter_.road_lanelets_)) {
-      RCLCPP_INFO(this->get_logger(), "iterator 0: %d", (*iterator)(0));
-      RCLCPP_INFO(this->get_logger(), "iterator 1: %d", (*iterator)(1));
+          pcl::PointXYZ(position.x(), position.y(), 0.0), lane_filter_.road_lanelets_)) {
+      // RCLCPP_INFO(this->get_logger(), "iterator 0: %d", (*iterator)(0));
+      // RCLCPP_INFO(this->get_logger(), "iterator 1: %d", (*iterator)(1));
       if (
         fabs(
           elevation_map_.at("elevation", *iterator) -
