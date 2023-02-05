@@ -489,20 +489,26 @@ void ElevationMapLoaderNode::inpaintElevationMap(const float radius)
   // Get the inpaint mask (nonzero pixels indicate where values need to be filled in).
   elevation_map_.add("inpaint_mask", 0.0);
 
-  elevation_map_.setBasicLayers(std::vector<std::string>());
-  for (grid_map::GridMapIterator iterator(elevation_map_); !iterator.isPastEnd(); ++iterator) {
-    if (!elevation_map_.isValid(*iterator, layer_name_)) {
-      elevation_map_.at("inpaint_mask", *iterator) = 1.0;
-    }
-  }
-
-  // grid_map::Polygon lanelet_polygon;
-  // for (grid_map_utils::PolygonIterator iterator(elevation_map_, lanelet_polygon);
-  // !iterator.isPastEnd(); ++iterator) {
+  // elevation_map_.setBasicLayers(std::vector<std::string>());
+  // for (grid_map::GridMapIterator iterator(elevation_map_); !iterator.isPastEnd(); ++iterator) {
   //   if (!elevation_map_.isValid(*iterator, layer_name_)) {
   //     elevation_map_.at("inpaint_mask", *iterator) = 1.0;
   //   }
   // }
+
+  grid_map::Polygon lanelet_polygon
+  lanelet_polygon.setFrameId(elevation_map_.getFrameId());
+  for (const auto & lanelet : lane_filter_.road_lanelets_) {
+    for (const auto & point : lanelet.polygon2d().basicPolygon()) {
+    lanelet_polygon.addVertex(point.x, point.y);
+  }
+
+  for (grid_map_utils::PolygonIterator iterator(elevation_map_, lanelet_polygon);
+  !iterator.isPastEnd(); ++iterator) {
+    if (!elevation_map_.isValid(*iterator, layer_name_)) {
+      elevation_map_.at("inpaint_mask", *iterator) = 1.0;
+    }
+  }
 
   {
     const auto stop = std::chrono::high_resolution_clock::now();
