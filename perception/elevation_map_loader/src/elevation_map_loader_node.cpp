@@ -500,7 +500,7 @@ void ElevationMapLoaderNode::inpaintElevationMap(const float radius)
   lanelet_polygon.setFrameId(elevation_map_.getFrameId());
   for (const auto & lanelet : lane_filter_.road_lanelets_) {
     for (const auto & point : lanelet.polygon2d().basicPolygon()) {
-      lanelet_polygon.addVertex(point.x, point.y);
+      lanelet_polygon.addVertex(grid_map::Position(point.x(), point.y()));
     }
   }
 
