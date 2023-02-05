@@ -504,10 +504,10 @@ void ElevationMapLoaderNode::inpaintElevationMap(const float radius)
 
   for (grid_map_utils::PolygonIterator iterator(elevation_map_, lanelet_polygon);
        !iterator.isPastEnd(); ++iterator) {
+    RCLCPP_INFO(this->get_logger(), "iterator 0: %d", (*iterator)(0));
+    RCLCPP_INFO(this->get_logger(), "iterator 1: %d", (*iterator)(1));
     if (!elevation_map_.isValid(*iterator, layer_name_)) {
       elevation_map_.at("inpaint_mask", *iterator) = 1.0;
-      RCLCPP_INFO(this->get_logger(), "iterator 0: %d", (*iterator)(0));
-      RCLCPP_INFO(this->get_logger(), "iterator 1: %d", (*iterator)(1));
     }
   }
 
@@ -525,17 +525,18 @@ void ElevationMapLoaderNode::inpaintElevationMap(const float radius)
   cv::imwrite("mask.jpg", mask);
 
   const auto start_inpaint = std::chrono::high_resolution_clock::now();
-  RCLCPP_INFO_STREAM(this->get_logger(), "radius_in_pixels: %f" << radius_in_pixels);
   if (use_morphology_) {
     const float radius_in_pixels = 2 * radius / elevation_map_.getResolution();
     cv::Mat kernel = cv::getStructuringElement(
       cv::MORPH_ELLIPSE, cv::Size(2 * radius_in_pixels + 1, 2 * radius_in_pixels + 1),
       cv::Point(radius_in_pixels, radius_in_pixels));
+    RCLCPP_INFO_STREAM(this->get_logger(), "radius_in_pixels: %f" << radius_in_pixels);
     RCLCPP_INFO_STREAM(this->get_logger(), "start cv::morphologyEx");
     cv::morphologyEx(original_image, filled_image, cv::MORPH_CLOSE, kernel, cv::Point(-1, -1), 2);
     RCLCPP_INFO_STREAM(this->get_logger(), "finish cv::morphologyEx");
   } else {
     const float radius_in_pixels = radius / elevation_map_.getResolution();
+    RCLCPP_INFO_STREAM(this->get_logger(), "radius_in_pixels: %f" << radius_in_pixels);
     RCLCPP_INFO_STREAM(this->get_logger(), "start cv::inpaint");
     cv::inpaint(original_image, mask, filled_image, radius_in_pixels, cv::INPAINT_NS);
     RCLCPP_INFO_STREAM(this->get_logger(), "finish cv::inpaint");
