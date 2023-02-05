@@ -483,7 +483,6 @@ void ElevationMapLoaderNode::createElevationMapFromPointcloud()
 
 void ElevationMapLoaderNode::inpaintElevationMap(const float radius)
 {
-  const auto start = std::chrono::high_resolution_clock::now();
   // Convert elevation layer to OpenCV image to fill in holes.
   // Get the inpaint mask (nonzero pixels indicate where values need to be filled in).
   elevation_map_.add("inpaint_mask", 0.0);
@@ -507,16 +506,9 @@ void ElevationMapLoaderNode::inpaintElevationMap(const float radius)
        !iterator.isPastEnd(); ++iterator) {
     if (!elevation_map_.isValid(*iterator, layer_name_)) {
       elevation_map_.at("inpaint_mask", *iterator) = 1.0;
+      RCLCPP_INFO(this->get_logger(), "iterator 0: %d", (*iterator)(0));
+      RCLCPP_INFO(this->get_logger(), "iterator 1: %d", (*iterator)(1));
     }
-  }
-
-  {
-    const auto stop = std::chrono::high_resolution_clock::now();
-    const auto duration =
-      std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() / 1000.0;
-    RCLCPP_INFO_STREAM(
-      this->get_logger(),
-      "elevation_map_.at(inpaint_mask, *iterator) = 1.0: " << duration << " sec");
   }
 
   cv::Mat original_image;
@@ -525,21 +517,12 @@ void ElevationMapLoaderNode::inpaintElevationMap(const float radius)
   const float min_value = elevation_map_.get(layer_name_).minCoeffOfFinites();
   const float max_value = elevation_map_.get(layer_name_).maxCoeffOfFinites();
 
-  const auto start_convert = std::chrono::high_resolution_clock::now();
   grid_map::GridMapCvConverter::toImage<unsigned char, 3>(
     elevation_map_, layer_name_, CV_8UC3, min_value, max_value, original_image);
   grid_map::GridMapCvConverter::toImage<unsigned char, 1>(
     elevation_map_, "inpaint_mask", CV_8UC1, mask);
   cv::imwrite("original_image.jpg", original_image);
   cv::imwrite("mask.jpg", mask);
-
-  {
-    const auto stop_convert = std::chrono::high_resolution_clock::now();
-    const auto duration =
-      std::chrono::duration_cast<std::chrono::milliseconds>(stop_convert - start_convert).count() /
-      1000.0;
-    RCLCPP_INFO_STREAM(this->get_logger(), "convert: " << duration << " sec");
-  }
 
   const auto start_inpaint = std::chrono::high_resolution_clock::now();
   RCLCPP_INFO_STREAM(this->get_logger(), "radius_in_pixels: %f" << radius_in_pixels);
@@ -567,18 +550,9 @@ void ElevationMapLoaderNode::inpaintElevationMap(const float radius)
     RCLCPP_INFO_STREAM(this->get_logger(), "inpaint: " << duration << " sec");
   }
 
-  const auto start_addlayer = std::chrono::high_resolution_clock::now();
   grid_map::GridMapCvConverter::addLayerFromImage<unsigned char, 3>(
     filled_image, layer_name_, elevation_map_, min_value, max_value);
   elevation_map_.erase("inpaint_mask");
-  {
-    const auto stop_addlayer = std::chrono::high_resolution_clock::now();
-    const auto duration =
-      std::chrono::duration_cast<std::chrono::milliseconds>(stop_addlayer - start_addlayer)
-        .count() /
-      1000.0;
-    RCLCPP_INFO_STREAM(this->get_logger(), "addlayer: " << duration << " sec");
-  }
 }
 tier4_autoware_utils::LinearRing2d ElevationMapLoaderNode::getConvexHull(
   const pcl::PointCloud<pcl::PointXYZ>::Ptr & input_cloud)
