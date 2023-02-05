@@ -496,20 +496,26 @@ void ElevationMapLoaderNode::inpaintElevationMap(const float radius)
   //   }
   // }
 
-  grid_map::Polygon lanelet_polygon;
-  lanelet_polygon.setFrameId(map_frame_);
-  for (const auto & lanelet : lane_filter_.road_lanelets_) {
-    for (const auto & point : lanelet.polygon2d().basicPolygon()) {
-      lanelet_polygon.addVertex(grid_map::Position(point.x(), point.y()));
-    }
-  }
+  // grid_map::Polygon lanelet_polygon;
+  // lanelet_polygon.setFrameId(map_frame_);
+  // for (const auto & lanelet : lane_filter_.road_lanelets_) {
+  //   for (const auto & point : lanelet.polygon2d().basicPolygon()) {
+  //     lanelet_polygon.addVertex(grid_map::Position(point.x(), point.y()));
+  //   }
+  // }
 
-  for (grid_map_utils::PolygonIterator iterator(elevation_map_, lanelet_polygon);
-       !iterator.isPastEnd(); ++iterator) {
-    RCLCPP_INFO(this->get_logger(), "iterator 0: %d", (*iterator)(0));
-    RCLCPP_INFO(this->get_logger(), "iterator 1: %d", (*iterator)(1));
+  // for (grid_map_utils::PolygonIterator iterator(elevation_map_, lanelet_polygon);
+  //      !iterator.isPastEnd(); ++iterator) {
+  for (grid_map::GridMapIterator iterator(elevation_map_); !iterator.isPastEnd(); ++iterator) {
     if (!elevation_map_.isValid(*iterator, layer_name_)) {
-      elevation_map_.at("inpaint_mask", *iterator) = 1.0;
+      RCLCPP_INFO(this->get_logger(), "iterator 0: %d", (*iterator)(0));
+      RCLCPP_INFO(this->get_logger(), "iterator 1: %d", (*iterator)(1));
+      grid_map::Position position;
+      elevation_map_.getPosition(*iterator, position);
+      if (checkPointWithinLanelets(
+            pcl::PointXYZ(position.x, position.y, 0.0), lane_filter_.road_lanelets_)) {
+        elevation_map_.at("inpaint_mask", *iterator) = 1.0;
+      }
     }
   }
 
@@ -563,17 +569,23 @@ void ElevationMapLoaderNode::inpaintElevationMap(const float radius)
   grid_map::GridMapRosConverter::loadFromBag(
     elevation_map_directory_original_, "elevation_map", elevation_map_original);
 
-  for (grid_map_utils::PolygonIterator iterator(elevation_map_, lanelet_polygon);
-       !iterator.isPastEnd(); ++iterator) {
-    RCLCPP_INFO(this->get_logger(), "iterator 0: %d", (*iterator)(0));
-    RCLCPP_INFO(this->get_logger(), "iterator 1: %d", (*iterator)(1));
-    if (
-      fabs(
-        elevation_map_.at("elevation", *iterator) -
-        elevation_map_original.at("elevation", *iterator)) > 0.1) {
-      RCLCPP_INFO(this->get_logger(), "not equal");
+  // for (grid_map_utils::PolygonIterator iterator(elevation_map_, lanelet_polygon);
+  //      !iterator.isPastEnd(); ++iterator) {
+  for (grid_map::GridMapIterator iterator(elevation_map_); !iterator.isPastEnd(); ++iterator) {
+    grid_map::Position position;
+    elevation_map_.getPosition(*iterator, position);
+    if (checkPointWithinLanelets(
+          pcl::PointXYZ(position.x, position.y, 0.0), lane_filter_.road_lanelets_)) {
       RCLCPP_INFO(this->get_logger(), "iterator 0: %d", (*iterator)(0));
       RCLCPP_INFO(this->get_logger(), "iterator 1: %d", (*iterator)(1));
+      if (
+        fabs(
+          elevation_map_.at("elevation", *iterator) -
+          elevation_map_original.at("elevation", *iterator)) > 0.1) {
+        RCLCPP_INFO(this->get_logger(), "not equal");
+        RCLCPP_INFO(this->get_logger(), "iterator 0: %d", (*iterator)(0));
+        RCLCPP_INFO(this->get_logger(), "iterator 1: %d", (*iterator)(1));
+      }
     }
   }
 
