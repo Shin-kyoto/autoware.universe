@@ -496,15 +496,16 @@ void ElevationMapLoaderNode::inpaintElevationMap(const float radius)
   //   }
   // }
 
-  grid_map::Polygon lanelet_polygon
+  grid_map::Polygon lanelet_polygon;
   lanelet_polygon.setFrameId(elevation_map_.getFrameId());
   for (const auto & lanelet : lane_filter_.road_lanelets_) {
     for (const auto & point : lanelet.polygon2d().basicPolygon()) {
-    lanelet_polygon.addVertex(point.x, point.y);
+      lanelet_polygon.addVertex(point.x, point.y);
+    }
   }
 
   for (grid_map_utils::PolygonIterator iterator(elevation_map_, lanelet_polygon);
-  !iterator.isPastEnd(); ++iterator) {
+       !iterator.isPastEnd(); ++iterator) {
     if (!elevation_map_.isValid(*iterator, layer_name_)) {
       elevation_map_.at("inpaint_mask", *iterator) = 1.0;
     }
