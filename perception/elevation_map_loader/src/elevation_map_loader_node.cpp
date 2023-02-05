@@ -60,6 +60,8 @@ ElevationMapLoaderNode::ElevationMapLoaderNode(const rclcpp::NodeOptions & optio
   use_elevation_map_cloud_publisher_ =
     this->declare_parameter("use_elevation_map_cloud_publisher", false);
   elevation_map_directory_ = this->declare_parameter("elevation_map_directory", "path_default");
+  elevation_map_directory_original_ =
+    this->declare_parameter("elevation_map_directory_original", "path_default");
   const bool use_lane_filter = this->declare_parameter("use_lane_filter", false);
   data_manager_.use_lane_filter_ = use_lane_filter;
 
@@ -559,14 +561,14 @@ void ElevationMapLoaderNode::inpaintElevationMap(const float radius)
   // load map
   grid_map::GridMap elevation_map_original;
   grid_map::GridMapRosConverter::loadFromBag(
-    "~/work/1223/eneosinpaintoriginal/elevation_maps", "elevation_map", elevation_map_original);
+    elevation_map_directory_original_, "elevation_map", elevation_map_original);
 
   for (grid_map_utils::PolygonIterator iterator(elevation_map_, lanelet_polygon);
        !iterator.isPastEnd(); ++iterator) {
     RCLCPP_INFO(this->get_logger(), "iterator 0: %d", (*iterator)(0));
     RCLCPP_INFO(this->get_logger(), "iterator 1: %d", (*iterator)(1));
     if (
-      math::fabs(
+      fabs(
         elevation_map_.at("elevation", *iterator) -
         elevation_map_original.at("elevation", *iterator)) > 0.1) {
       RCLCPP_INFO(this->get_logger(), "not equal");

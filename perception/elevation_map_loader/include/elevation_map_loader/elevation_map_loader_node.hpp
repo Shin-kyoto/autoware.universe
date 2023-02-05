@@ -120,6 +120,7 @@ private:
   std::string layer_name_;
   std::string map_frame_;
   std::string elevation_map_directory_;
+  std::string elevation_map_directory_original_;
   bool use_inpaint_;
   bool use_morphology_;
   bool use_incremental_generation_;

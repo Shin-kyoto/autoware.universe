@@ -1,5 +1,6 @@
 <launch>
   <arg name="elevation_map_directory" default="$(find-pkg-share elevation_map_loader)/data/elevation_maps"/>
+  <arg name="elevation_map_directory_original" default="$(find-pkg-share elevation_map_loader)/original/elevation_maps"/>
   <arg name="param_file_path" default="$(find-pkg-share elevation_map_loader)/config/elevation_map_parameters.yaml"/>
   <arg name="use_lane_filter" default="false"/>
   <arg name="use_incremental_generation" default="true"/>
@@ -22,6 +23,7 @@
     <remap from="pcd_loader_service" to="/service/get_differential_pcd_map"/>
 
     <param name="elevation_map_directory" value="$(var elevation_map_directory)"/>
+    <param name="elevation_map_directory_original" value="$(var elevation_map_directory_original)"/>
     <param name="param_file_path" value="$(var param_file_path)"/>
     <param name="use_lane_filter" value="$(var use_lane_filter)"/>
     <param name="use_incremental_generation" value="$(var use_incremental_generation)"/>
