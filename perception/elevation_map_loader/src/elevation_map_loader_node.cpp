@@ -220,7 +220,7 @@ void ElevationMapLoaderNode::fillHoleInElevationMap(const float radius)
 
   const float radius_in_pixels = radius / elevation_map_.getResolution();
 
-  if (hole_filling_mode_ == "inpaint"){
+  if (hole_filling_mode_ == "inpaint") {
     // Get the inpaint mask (nonzero pixels indicate where values need to be filled in).
     elevation_map_.add("inpaint_mask", 0.0);
     elevation_map_.setBasicLayers(std::vector<std::string>());
@@ -238,7 +238,8 @@ void ElevationMapLoaderNode::fillHoleInElevationMap(const float radius)
       cv::MORPH_ELLIPSE, cv::Size(2 * radius_in_pixels + 1, 2 * radius_in_pixels + 1),
       cv::Point(radius_in_pixels, radius_in_pixels));
     int iterations = 2;
-    cv::morphologyEx(original_image, filled_image, cv::MORPH_CLOSE, kernel, cv::Point(-1, -1), iterations);
+    cv::morphologyEx(
+      original_image, filled_image, cv::MORPH_CLOSE, kernel, cv::Point(-1, -1), iterations);
   }
 
   grid_map::GridMapCvConverter::addLayerFromImage<unsigned char, 3>(
