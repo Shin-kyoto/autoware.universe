@@ -85,7 +85,7 @@ private:
     const pcl::PointCloud<pcl::PointXYZ>::Ptr & cloud);
   bool checkPointWithinLanelets(
     const pcl::PointXYZ & point, const lanelet::ConstLanelets & joint_lanelets);
-  void inpaintElevationMap(const float radius);
+  void fillHoleInElevationMap(const float radius);
   pcl::PointCloud<pcl::PointXYZ>::Ptr createPointcloudFromElevationMap();
   void saveElevationMap();
   float calculateDistancePointFromPlane(
@@ -95,8 +95,8 @@ private:
   std::string layer_name_;
   std::string map_frame_;
   std::string elevation_map_directory_;
-  bool use_inpaint_;
-  float inpaint_radius_;
+  std::string hole_filling_mode_;
+  float hole_filling_radius_;
   bool use_elevation_map_cloud_publisher_;
   std::string param_file_path_;
 

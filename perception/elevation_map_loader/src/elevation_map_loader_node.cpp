@@ -52,8 +52,8 @@ ElevationMapLoaderNode::ElevationMapLoaderNode(const rclcpp::NodeOptions & optio
   layer_name_ = this->declare_parameter("map_layer_name", std::string("elevation"));
   param_file_path_ = this->declare_parameter("param_file_path", "path_default");
   map_frame_ = this->declare_parameter("map_frame", "map");
-  use_inpaint_ = this->declare_parameter("use_inpaint", true);
-  inpaint_radius_ = this->declare_parameter("inpaint_radius", 0.3);
+  hole_filling_mode_ = this->declare_parameter("hole_filling_mode", "inpaint");
+  hole_filling_radius_ = this->declare_parameter("hole_filling_radius", 0.3);
   use_elevation_map_cloud_publisher_ =
     this->declare_parameter("use_elevation_map_cloud_publisher", false);
   elevation_map_directory_ = this->declare_parameter("elevation_map_directory", "path_default");
@@ -191,8 +191,8 @@ void ElevationMapLoaderNode::createElevationMap()
   }
   createElevationMapFromPointcloud(grid_map_pcl_loader);
   elevation_map_ = grid_map_pcl_loader->getGridMap();
-  if (use_inpaint_) {
-    inpaintElevationMap(inpaint_radius_);
+  if (hole_filling_mode_ == "inpaint" || hole_filling_mode_ == "closing") {
+    fillHoleInElevationMap(hole_filling_radius_);
   }
   saveElevationMap();
 }
@@ -208,31 +208,38 @@ void ElevationMapLoaderNode::createElevationMapFromPointcloud(
     start, "Finish creating elevation map. Total time: ", this->get_logger());
 }
 
-void ElevationMapLoaderNode::inpaintElevationMap(const float radius)
+void ElevationMapLoaderNode::fillHoleInElevationMap(const float radius)
 {
   // Convert elevation layer to OpenCV image to fill in holes.
-  // Get the inpaint mask (nonzero pixels indicate where values need to be filled in).
-  elevation_map_.add("inpaint_mask", 0.0);
-
-  elevation_map_.setBasicLayers(std::vector<std::string>());
-  for (grid_map::GridMapIterator iterator(elevation_map_); !iterator.isPastEnd(); ++iterator) {
-    if (!elevation_map_.isValid(*iterator, layer_name_)) {
-      elevation_map_.at("inpaint_mask", *iterator) = 1.0;
-    }
-  }
   cv::Mat original_image;
-  cv::Mat mask;
   cv::Mat filled_image;
   const float min_value = elevation_map_.get(layer_name_).minCoeffOfFinites();
   const float max_value = elevation_map_.get(layer_name_).maxCoeffOfFinites();
-
   grid_map::GridMapCvConverter::toImage<unsigned char, 3>(
     elevation_map_, layer_name_, CV_8UC3, min_value, max_value, original_image);
-  grid_map::GridMapCvConverter::toImage<unsigned char, 1>(
-    elevation_map_, "inpaint_mask", CV_8UC1, mask);
 
   const float radius_in_pixels = radius / elevation_map_.getResolution();
-  cv::inpaint(original_image, mask, filled_image, radius_in_pixels, cv::INPAINT_NS);
+
+  if (hole_filling_mode_ == "inpaint"){
+    // Get the inpaint mask (nonzero pixels indicate where values need to be filled in).
+    elevation_map_.add("inpaint_mask", 0.0);
+    elevation_map_.setBasicLayers(std::vector<std::string>());
+    for (grid_map::GridMapIterator iterator(elevation_map_); !iterator.isPastEnd(); ++iterator) {
+      if (!elevation_map_.isValid(*iterator, layer_name_)) {
+        elevation_map_.at("inpaint_mask", *iterator) = 1.0;
+      }
+    }
+    cv::Mat mask;
+    grid_map::GridMapCvConverter::toImage<unsigned char, 1>(
+      elevation_map_, "inpaint_mask", CV_8UC1, mask);
+    cv::inpaint(original_image, mask, filled_image, radius_in_pixels, cv::INPAINT_NS);
+  } else if (hole_filling_mode_ == "closing") {
+    cv::Mat kernel = cv::getStructuringElement(
+      cv::MORPH_ELLIPSE, cv::Size(2 * radius_in_pixels + 1, 2 * radius_in_pixels + 1),
+      cv::Point(radius_in_pixels, radius_in_pixels));
+    int iterations = 2;
+    cv::morphologyEx(original_image, filled_image, cv::MORPH_CLOSE, kernel, cv::Point(-1, -1), iterations);
+  }
 
   grid_map::GridMapCvConverter::addLayerFromImage<unsigned char, 3>(
     filled_image, layer_name_, elevation_map_, min_value, max_value);
