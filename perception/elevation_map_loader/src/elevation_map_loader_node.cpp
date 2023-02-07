@@ -54,7 +54,7 @@ ElevationMapLoaderNode::ElevationMapLoaderNode(const rclcpp::NodeOptions & optio
   std::string param_file_path = this->declare_parameter("param_file_path", "path_default");
   map_frame_ = this->declare_parameter("map_frame", "map");
   use_inpaint_ = this->declare_parameter("use_inpaint", true);
-  use_morphology_ = this->declare_parameter("use_morphology", true);
+  use_morphology_ = this->declare_parameter("use_morphology", false);
   use_incremental_generation_ = this->declare_parameter("use_incremental_generation", true);
   inpaint_radius_ = this->declare_parameter("inpaint_radius", 0.3);
   use_elevation_map_cloud_publisher_ =
@@ -506,16 +506,21 @@ void ElevationMapLoaderNode::inpaintElevationMap(const float radius)
 
   // for (grid_map_utils::PolygonIterator iterator(elevation_map_, lanelet_polygon);
   //      !iterator.isPastEnd(); ++iterator) {
+  double upper_limit = elevation_map_.getSize()(1) / 2;
   for (grid_map::GridMapIterator iterator(elevation_map_); !iterator.isPastEnd(); ++iterator) {
+    if ((*iterator)(1) < upper_limit) {
+      continue;
+    }
     if (!elevation_map_.isValid(*iterator, layer_name_)) {
-      grid_map::Position position;
-      elevation_map_.getPosition(*iterator, position);
-      if (checkPointWithinLanelets(
-            pcl::PointXYZ(position.x(), position.y(), 0.0), lane_filter_.road_lanelets_)) {
-        RCLCPP_INFO(this->get_logger(), "iterator 0: %d", (*iterator)(0));
-        RCLCPP_INFO(this->get_logger(), "iterator 1: %d", (*iterator)(1));
-        elevation_map_.at("inpaint_mask", *iterator) = 1.0;
-      }
+      elevation_map_.at("inpaint_mask", *iterator) = 1.0;
+      // grid_map::Position position;
+      // elevation_map_.getPosition(*iterator, position);
+      // if (checkPointWithinLanelets(
+      //       pcl::PointXYZ(position.x(), position.y(), 0.0), lane_filter_.road_lanelets_)) {
+      //   RCLCPP_INFO(this->get_logger(), "iterator 0: %d", (*iterator)(0));
+      //   RCLCPP_INFO(this->get_logger(), "iterator 1: %d", (*iterator)(1));
+      //   elevation_map_.at("inpaint_mask", *iterator) = 1.0;
+      // }
     }
   }
 
