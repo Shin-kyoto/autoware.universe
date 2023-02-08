@@ -100,7 +100,8 @@ private:
   void create_elevation_map();
   std::tuple<double, double, double, double> get_bound();
   void setVerbosityLevelToDebugIfFlagSet();
-  void createElevationMapFromPointcloud();
+  void createElevationMapFromPointcloud(
+    const pcl::shared_ptr<grid_map::GridMapPclLoader> & grid_map_pcl_loader);
   tier4_autoware_utils::LinearRing2d getConvexHull(
     const pcl::PointCloud<pcl::PointXYZ>::Ptr & input_cloud);
   lanelet::ConstLanelets getIntersectedLanelets(
@@ -126,7 +127,7 @@ private:
   bool use_incremental_generation_;
   float inpaint_radius_;
   bool use_elevation_map_cloud_publisher_;
-  pcl::shared_ptr<grid_map::GridMapPclLoader> grid_map_pcl_loader_;
+  std::string param_file_path_;
   bool finish_pub_elevation_map_ = false;
 
   DataManager data_manager_;

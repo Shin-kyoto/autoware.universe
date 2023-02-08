@@ -71,6 +71,10 @@ public:
   bool isExecutionRequested() const override;
   bool isExecutionReady() const override;
   BT::NodeStatus updateState() override;
+  BT::NodeStatus getNodeStatusWhileWaitingApproval() const override
+  {
+    return BT::NodeStatus::SUCCESS;
+  }
   BehaviorModuleOutput plan() override;
   BehaviorModuleOutput planWaitingApproval() override;
   CandidateOutput planCandidate() const override;
@@ -101,7 +105,7 @@ private:
   std::shared_ptr<PullOutPlannerBase> getCurrentPlanner() const;
   PathWithLaneId getFullPath() const;
   ParallelParkingParameters getGeometricPullOutParameters() const;
-  std::vector<Pose> searchBackedPoses();
+  std::vector<Pose> searchPullOutStartPoses();
 
   std::shared_ptr<LaneDepartureChecker> lane_departure_checker_;
 
@@ -114,7 +118,7 @@ private:
     const std::vector<Pose> & start_pose_candidates, const Pose & goal_pose);
   void planWithPriorityOnShortBackDistance(
     const std::vector<Pose> & start_pose_candidates, const Pose & goal_pose);
-  void generateStopPath();
+  PathWithLaneId generateStopPath() const;
   void updatePullOutStatus();
   static bool isOverlappedWithLane(
     const lanelet::ConstLanelet & candidate_lanelet,
