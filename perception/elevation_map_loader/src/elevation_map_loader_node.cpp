@@ -361,7 +361,7 @@ void ElevationMapLoaderNode::create_elevation_map()
       elevation_map_.add(layer_name_, value);
 
       for (const auto & grid_map : grid_map_vector) {
-        grid_map::Matrix gridMapData = grid_map.get("elevation_");
+        grid_map::Matrix gridMapData = grid_map.get("elevation");
         unsigned int linearGridMapSize = grid_map.getSize().prod();
         for (unsigned int linearIndex = 0; linearIndex < linearGridMapSize; ++linearIndex) {
           const grid_map::Index index(
