@@ -55,6 +55,8 @@ ElevationMapLoaderNode::ElevationMapLoaderNode(const rclcpp::NodeOptions & optio
   map_frame_ = this->declare_parameter("map_frame", "map");
   use_inpaint_ = this->declare_parameter("use_inpaint", true);
   use_incremental_generation_ = this->declare_parameter("use_incremental_generation", true);
+  data_manager_.use_incremental_generation_ = use_incremental_generation_;
+  bool use_differential_load = this->declare_parameter<bool>("use_differential_load", true);
   inpaint_radius_ = this->declare_parameter("inpaint_radius", 0.3);
   use_elevation_map_cloud_publisher_ =
     this->declare_parameter("use_elevation_map_cloud_publisher", false);
@@ -87,9 +89,7 @@ ElevationMapLoaderNode::ElevationMapLoaderNode(const rclcpp::NodeOptions & optio
     std::bind(&ElevationMapLoaderNode::onMapHash, this, _1));
   sub_vector_map_ = this->create_subscription<autoware_auto_mapping_msgs::msg::HADMapBin>(
     "input/vector_map", durable_qos, std::bind(&ElevationMapLoaderNode::onVectorMap, this, _1));
-  // bool enable_differential_load = declare_parameter<bool>("enable_differential_load");
-  bool enable_differential_load = true;
-  if (enable_differential_load) {
+  if (use_differential_load) {
     {
       const auto period_ns =
         std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::duration<double>(1.0));
@@ -343,11 +343,11 @@ void ElevationMapLoaderNode::create_elevation_map()
       double max_bound_y;
       double min_bound_x;
       double min_bound_y;
-      std::tie(max_bound_x, max_bound_y, min_bound_x, min_bound_y) = get_bound();
+      std::tie(max_bound_x, max_bound_y, min_bound_x, min_bound_y) = getBound();
 
       std::vector<grid_map::GridMap> grid_map_vector;
       for (const auto & map_pcl : *data_manager_.map_pcl_vector_ptr_) {
-        grid_map_vector.push_back(createElevationMap_incremental(map_pcl));
+        grid_map_vector.push_back(createElevationMap(map_pcl));
       }
       grid_map::Length length =
         grid_map::Length(max_bound_x - min_bound_x, max_bound_y - min_bound_y);
@@ -378,11 +378,11 @@ void ElevationMapLoaderNode::create_elevation_map()
     }
     RCLCPP_INFO(this->get_logger(), "finish incremental generation");
   } else {
-    createElevationMap();
+    elevation_map_ = createElevationMap(data_manager_.map_pcl_ptr_);
   }
 }
 
-std::tuple<double, double, double, double> ElevationMapLoaderNode::get_bound()
+std::tuple<double, double, double, double> ElevationMapLoaderNode::getBound()
 {
   bool bound_flag = false;  // TODO(Shin-kyoto): bound_flagは暫定対応．boundがdoubleかどうかも確認
   double all_max_bound_x = 0.0;
@@ -418,28 +418,7 @@ std::tuple<double, double, double, double> ElevationMapLoaderNode::get_bound()
   return std::forward_as_tuple(all_max_bound_x, all_max_bound_y, all_min_bound_x, all_min_bound_y);
 }
 
-void ElevationMapLoaderNode::createElevationMap()
-{
-  auto grid_map_logger = rclcpp::get_logger("grid_map_logger");
-  grid_map_logger.set_level(rclcpp::Logger::Level::Error);
-  pcl::shared_ptr<grid_map::GridMapPclLoader> grid_map_pcl_loader =
-    pcl::make_shared<grid_map::GridMapPclLoader>(grid_map_logger);
-  grid_map_pcl_loader->loadParameters(param_file_path_);
-  if (lane_filter_.use_lane_filter_) {
-    const auto convex_hull = getConvexHull(data_manager_.map_pcl_ptr_);
-    lanelet::ConstLanelets intersected_lanelets =
-      getIntersectedLanelets(convex_hull, lane_filter_.road_lanelets_);
-    pcl::PointCloud<pcl::PointXYZ>::Ptr lane_filtered_map_pcl_ptr =
-      getLaneFilteredPointCloud(intersected_lanelets, data_manager_.map_pcl_ptr_);
-    grid_map_pcl_loader->setInputCloud(lane_filtered_map_pcl_ptr);
-  } else {
-    grid_map_pcl_loader->setInputCloud(data_manager_.map_pcl_ptr_);
-  }
-  createElevationMapFromPointcloud(grid_map_pcl_loader);
-  elevation_map_ = grid_map_pcl_loader->getGridMap();
-}
-
-grid_map::GridMap ElevationMapLoaderNode::createElevationMap_incremental(
+grid_map::GridMap ElevationMapLoaderNode::createElevationMap(
   pcl::PointCloud<pcl::PointXYZ>::Ptr map_pcl)
 {
   auto grid_map_logger = rclcpp::get_logger("grid_map_logger");

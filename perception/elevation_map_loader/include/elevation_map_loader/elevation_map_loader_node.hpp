@@ -64,7 +64,7 @@ public:
   std::shared_ptr<std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>> map_pcl_vector_ptr_;
   lanelet::LaneletMapPtr lanelet_map_ptr_;
   bool use_lane_filter_ = false;
-  bool use_incremental_generation_ = true;
+  bool use_incremental_generation_ = false;
 };
 
 class ElevationMapLoaderNode : public rclcpp::Node
@@ -95,10 +95,9 @@ private:
     const std::shared_ptr<std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>> pointcloud_map_vector);
 
   void publish();
-  void createElevationMap();
-  grid_map::GridMap createElevationMap_incremental(pcl::PointCloud<pcl::PointXYZ>::Ptr map_pcl);
+  grid_map::GridMap createElevationMap(pcl::PointCloud<pcl::PointXYZ>::Ptr map_pcl);
   void create_elevation_map();
-  std::tuple<double, double, double, double> get_bound();
+  std::tuple<double, double, double, double> getBound();
   void setVerbosityLevelToDebugIfFlagSet();
   void createElevationMapFromPointcloud(
     const pcl::shared_ptr<grid_map::GridMapPclLoader> & grid_map_pcl_loader);
