@@ -102,6 +102,12 @@ ElevationMapLoaderNode::ElevationMapLoaderNode(const rclcpp::NodeOptions & optio
       group_ = create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
       pcd_loader_client_ = create_client<autoware_map_msgs::srv::GetDifferentialPointCloudMap>(
         "pcd_loader_service", rmw_qos_profile_services_default, group_);
+      while (!pcd_loader_client_->wait_for_service(std::chrono::seconds(1)) && rclcpp::ok()) {
+        RCLCPP_INFO(
+          this->get_logger(),
+          "Waiting for pcd map loader service. Check if the enable_differential_load in "
+          "pointcloud_map_loader is set `true`.");
+      }
       timer_ = rclcpp::create_timer(
         this, get_clock(), period_ns, std::bind(&ElevationMapLoaderNode::timer_callback, this));
     }
@@ -243,6 +249,13 @@ void ElevationMapLoaderNode::receive_map()
   // 地図全体を要求する
   request->area.type = autoware_map_msgs::msg::AreaInfo::ALL_AREA;  // 1;
   std::vector<std::string> cached_ids{};
+  if (!pcd_loader_client_->service_is_ready()) {
+    RCLCPP_INFO(
+      this->get_logger(),
+      "Waiting for pcd map loader service. Check if the enable_differential_load in "
+      "pointcloud_map_loader is set `true`.");
+    ;
+  }
   bool is_all_received = false;
   while (!is_all_received) {
     request->cached_ids = cached_ids;  //毎回書き換える
