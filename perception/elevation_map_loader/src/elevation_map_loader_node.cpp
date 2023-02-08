@@ -366,7 +366,8 @@ void ElevationMapLoaderNode::create_elevation_map()
         for (unsigned int linearIndex = 0; linearIndex < linearGridMapSize; ++linearIndex) {
           const grid_map::Index index(
             grid_map::getIndexFromLinearIndex(linearIndex, grid_map.getSize()));
-          // 各grid_mapのセルのデータを，elevation_map全体における，セルに格納していく
+          // update cell value in elevation map for all area by that in grid_map for each pointcloud
+          // map
           grid_map::Position position;
           grid_map.getPosition(index, position);
           grid_map::Index index_all;
@@ -384,7 +385,7 @@ void ElevationMapLoaderNode::create_elevation_map()
 
 std::tuple<double, double, double, double> ElevationMapLoaderNode::getBound()
 {
-  bool bound_flag = false;  // TODO(Shin-kyoto): bound_flagは暫定対応．boundがdoubleかどうかも確認
+  bool bound_flag = false;  // TODO(Shin-kyoto): bound_flagは暫定対応．
   double all_max_bound_x = 0.0;
   double all_max_bound_y = 0.0;
   double all_min_bound_x = 0.0;
