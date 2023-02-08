@@ -123,7 +123,6 @@ private:
   std::string elevation_map_directory_;
   std::string elevation_map_directory_original_;
   bool use_inpaint_;
-  bool use_morphology_;
   bool use_incremental_generation_;
   float inpaint_radius_;
   bool use_elevation_map_cloud_publisher_;
