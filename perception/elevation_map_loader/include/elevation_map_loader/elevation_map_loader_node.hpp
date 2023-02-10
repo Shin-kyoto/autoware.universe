@@ -88,19 +88,17 @@ private:
   std::condition_variable condition_;
   void onPointcloudMap(const sensor_msgs::msg::PointCloud2::ConstSharedPtr pointcloud_map);
   void onMapHash(const tier4_external_api_msgs::msg::MapHash::ConstSharedPtr map_hash);
-  void timer_callback();
+  void timerCallback();
   void onVectorMap(const autoware_auto_mapping_msgs::msg::HADMapBin::ConstSharedPtr vector_map);
-  void receive_map();
-  void receive_map_vector(
+  void receiveMap();
+  void receiveMapVector(
     const std::shared_ptr<std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>> pointcloud_map_vector);
 
   void publish();
-  grid_map::GridMap createElevationMap(pcl::PointCloud<pcl::PointXYZ>::Ptr map_pcl);
-  void create_elevation_map();
+  grid_map::GridMap createElevationMapFromPointcloud(pcl::PointCloud<pcl::PointXYZ>::Ptr map_pcl);
+  void createElevationMap();
   std::tuple<double, double, double, double> getBound();
   void setVerbosityLevelToDebugIfFlagSet();
-  void createElevationMapFromPointcloud(
-    const pcl::shared_ptr<grid_map::GridMapPclLoader> & grid_map_pcl_loader);
   tier4_autoware_utils::LinearRing2d getConvexHull(
     const pcl::PointCloud<pcl::PointXYZ>::Ptr & input_cloud);
   lanelet::ConstLanelets getIntersectedLanelets(
