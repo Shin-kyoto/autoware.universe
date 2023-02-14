@@ -107,6 +107,7 @@ private:
   pcl::PointCloud<pcl::PointXYZ>::Ptr getLaneFilteredPointCloud(
     const lanelet::ConstLanelets & joint_lanelets,
     const pcl::PointCloud<pcl::PointXYZ>::Ptr & cloud);
+  bool isPointWithinLanelets(const grid_map::Position &, const lanelet::ConstLanelets &);
   bool checkPointWithinLanelets(
     const pcl::PointXYZ & point, const lanelet::ConstLanelets & joint_lanelets);
   void inpaintElevationMap(const float radius);
@@ -114,6 +115,7 @@ private:
   void saveElevationMap();
   float calculateDistancePointFromPlane(
     const pcl::PointXYZ & point, const lanelet::ConstLanelet & lanelet);
+  void compareElevationMapWithOtherGridMap();
 
   grid_map::GridMap elevation_map_;
   std::string layer_name_;

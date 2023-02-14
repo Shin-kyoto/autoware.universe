@@ -84,11 +84,11 @@ ElevationMapLoaderNode::ElevationMapLoaderNode(const rclcpp::NodeOptions & optio
   }
 
   using std::placeholders::_1;
+  sub_vector_map_ = this->create_subscription<autoware_auto_mapping_msgs::msg::HADMapBin>(
+    "input/vector_map", durable_qos, std::bind(&ElevationMapLoaderNode::onVectorMap, this, _1));
   sub_map_hash_ = create_subscription<tier4_external_api_msgs::msg::MapHash>(
     "/api/autoware/get/map/info/hash", durable_qos,
     std::bind(&ElevationMapLoaderNode::onMapHash, this, _1));
-  sub_vector_map_ = this->create_subscription<autoware_auto_mapping_msgs::msg::HADMapBin>(
-    "input/vector_map", durable_qos, std::bind(&ElevationMapLoaderNode::onVectorMap, this, _1));
   if (use_differential_load) {
     {
       const auto period_ns =
@@ -126,6 +126,10 @@ void ElevationMapLoaderNode::publish()
       this->get_logger(), "Finish creating elevation map from pointcloud map. Start inpaint");
     if (use_inpaint_) {
       inpaintElevationMap(inpaint_radius_);
+    }
+    if (false) {
+      RCLCPP_INFO(this->get_logger(), "compare maps");
+      compareElevationMapWithOtherGridMap();
     }
     saveElevationMap();
   } else if (info.st_mode & S_IFDIR) {
@@ -349,17 +353,24 @@ void ElevationMapLoaderNode::createElevationMap()
       for (const auto & map_pcl : *data_manager_.map_pcl_vector_ptr_) {
         grid_map_vector.push_back(createElevationMapFromPointcloud(map_pcl));
       }
+
+      // create elevation map for all area
+      RCLCPP_INFO(this->get_logger(), "create elevation map for all area");
       grid_map::Length length =
         grid_map::Length(max_bound_x - min_bound_x, max_bound_y - min_bound_y);
       double resolution = 0.3;  // elevation_map_.getResolution();  // node paramから取るべき
       grid_map::Position position =
         grid_map::Position((max_bound_x + min_bound_x) / 2.0, (max_bound_y + min_bound_y) / 2.0);
-
       elevation_map_.clearAll();
       elevation_map_.setGeometry(length, resolution, position);
       double value = 0.0;
       elevation_map_.add(layer_name_, value);
 
+      // create elevation map for all area
+      RCLCPP_INFO(
+        this->get_logger(),
+        "update cell value in elevation map for all area by that in grid_map for each pointcloud "
+        "map");
       for (const auto & grid_map : grid_map_vector) {
         grid_map::Matrix gridMapData = grid_map.get("elevation");
         unsigned int linearGridMapSize = grid_map.getSize().prod();
@@ -480,7 +491,41 @@ void ElevationMapLoaderNode::inpaintElevationMap(const float radius)
 
   grid_map::GridMapCvConverter::addLayerFromImage<unsigned char, 3>(
     filled_image, layer_name_, elevation_map_, min_value, max_value);
+  cv::imwrite("original_image.jpg", original_image);
+  cv::imwrite("mask.jpg", mask);
+  cv::imwrite("filled_image.jpg", filled_image);
   elevation_map_.erase("inpaint_mask");
+}
+
+void ElevationMapLoaderNode::compareElevationMapWithOtherGridMap()
+{
+  // compare maps
+  // load map
+  grid_map::GridMap elevation_map_original;
+  grid_map::GridMapRosConverter::loadFromBag(
+    elevation_map_directory_original_, "elevation_map", elevation_map_original);
+
+  RCLCPP_INFO(this->get_logger(), "compare 2 maps");
+  std::ofstream ofs_diff("diff.csv", std::ios::app);
+  for (grid_map::GridMapIterator iterator(elevation_map_); !iterator.isPastEnd(); ++iterator) {
+    grid_map::Position position;
+    elevation_map_.getPosition(*iterator, position);
+    float diff = fabs(
+      elevation_map_.at("elevation", *iterator) -
+      elevation_map_original.at("elevation", *iterator));
+    ofs_diff << (*iterator)(0) << "," << (*iterator)(1) << "," << diff << std::endl;
+    if (diff > 0.1) {
+      RCLCPP_INFO(this->get_logger(), "not equal");
+      RCLCPP_INFO(
+        this->get_logger(), "diff: %f",
+        fabs(
+          elevation_map_.at("elevation", *iterator) -
+          elevation_map_original.at("elevation", *iterator)));
+      RCLCPP_INFO(this->get_logger(), "iterator 0: %d", (*iterator)(0));
+      RCLCPP_INFO(this->get_logger(), "iterator 1: %d", (*iterator)(1));
+    }
+    // }
+  }
 }
 
 tier4_autoware_utils::LinearRing2d ElevationMapLoaderNode::getConvexHull(
@@ -516,6 +561,18 @@ lanelet::ConstLanelets ElevationMapLoaderNode::getIntersectedLanelets(
     }
   }
   return intersected_lanelets;
+}
+
+bool ElevationMapLoaderNode::isPointWithinLanelets(
+  const grid_map::Position & point, const lanelet::ConstLanelets & lanelets)
+{
+  for (const auto & lanelet : lanelets) {
+    auto polygon = lanelet.polygon2d().basicPolygon();
+    if (boost::geometry::within(point, lanelet.polygon2d().basicPolygon())) {
+      return true;
+    }
+  }
+  return false;
 }
 
 bool ElevationMapLoaderNode::checkPointWithinLanelets(
