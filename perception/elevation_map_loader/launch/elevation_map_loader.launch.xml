@@ -1,10 +1,11 @@
 <launch>
   <arg name="elevation_map_directory" default="$(find-pkg-share elevation_map_loader)/data/elevation_maps"/>
-  <arg name="elevation_map_directory_original" default="$(find-pkg-share elevation_map_loader)/original/0214/elevation_map_not_incremental/elevation_maps"/>
+  <arg name="elevation_map_directory_original" default="$(find-pkg-share elevation_map_loader)/original/incremental_vs_not_incremental_large/not_incremental/elevation_maps"/>
+  <!-- <arg name="elevation_map_directory_original" default="$(find-pkg-share elevation_map_loader)/original/0214/elevation_map_not_incremental/elevation_maps"/> -->
   <arg name="param_file_path" default="$(find-pkg-share elevation_map_loader)/config/elevation_map_parameters.yaml"/>
   <arg name="use_lane_filter" default="false"/>
-  <arg name="use_incremental_generation" default="false"/>
-  <arg name="use_differential_load" default="false"/>
+  <arg name="use_incremental_generation" default="true"/>
+  <arg name="use_differential_load" default="true"/>
   <arg name="use_inpaint" default="true"/>
   <arg name="inpaint_radius" default="1.0"/>
 
