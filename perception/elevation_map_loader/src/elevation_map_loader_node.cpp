@@ -58,6 +58,8 @@ ElevationMapLoaderNode::ElevationMapLoaderNode(const rclcpp::NodeOptions & optio
   use_elevation_map_cloud_publisher_ =
     this->declare_parameter("use_elevation_map_cloud_publisher", false);
   elevation_map_directory_ = this->declare_parameter("elevation_map_directory", "path_default");
+  elevation_map_directory_original_ =
+    this->declare_parameter("elevation_map_directory_original", "path_default");
   const bool use_lane_filter = this->declare_parameter("use_lane_filter", false);
   data_manager_.use_lane_filter_ = use_lane_filter;
 
@@ -183,6 +185,10 @@ void ElevationMapLoaderNode::createElevationMap()
   if (use_inpaint_) {
     inpaintElevationMap(inpaint_radius_);
   }
+  if (lane_filter_.use_lane_filter_) {
+    RCLCPP_INFO(this->get_logger(), "compare maps");
+    compareElevationMapWithOtherGridMap();
+  }
   saveElevationMap();
 }
 
@@ -242,6 +248,36 @@ void ElevationMapLoaderNode::inpaintElevationMap(const float radius)
   grid_map::GridMapCvConverter::addLayerFromImage<unsigned char, 3>(
     filled_image, layer_name_, elevation_map_, min_value, max_value);
   elevation_map_.erase("inpaint_mask");
+}
+
+void ElevationMapLoaderNode::compareElevationMapWithOtherGridMap()
+{
+  // compare maps
+  // load map
+  grid_map::GridMap elevation_map_original;
+  grid_map::GridMapRosConverter::loadFromBag(
+    elevation_map_directory_original_, "elevation_map", elevation_map_original);
+
+  RCLCPP_INFO(this->get_logger(), "compare 2 maps");
+  for (const auto & lanelet : lane_filter_.road_lanelets_) {
+    auto lane_polygon = lanelet.polygon2d().basicPolygon();
+    grid_map::Polygon polygon;
+    for (const auto & p : lane_polygon) {
+      polygon.addVertex(grid_map::Position(p[0], p[1]));
+    }
+    std::ofstream ofs_diff_within_lanelet("diff_within_lanelet.csv", std::ios::app);
+    for (grid_map::PolygonIterator iterator(elevation_map_, polygon); !iterator.isPastEnd(); ++iterator) {
+      grid_map::Position position;
+      elevation_map_.getPosition(*iterator, position);
+      float diff = fabs(
+        elevation_map_.at("elevation", *iterator) -
+        elevation_map_original.at("elevation", *iterator));
+      ofs_diff_within_lanelet << (*iterator)(0) << "," << (*iterator)(1) << "," << diff << std::endl;
+      if (diff > 0.1) {
+        RCLCPP_INFO(this->get_logger(), "not equal");
+      }
+    }
+  }
 }
 
 pcl::PointCloud<pcl::PointXYZ>::Ptr ElevationMapLoaderNode::createPointcloudFromElevationMap()
