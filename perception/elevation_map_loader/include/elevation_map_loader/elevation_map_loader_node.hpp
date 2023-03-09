@@ -96,17 +96,11 @@ private:
 
   void publish();
   grid_map::GridMap createElevationMapFromPointcloud(pcl::PointCloud<pcl::PointXYZ>::Ptr map_pcl);
+  grid_map::GridMap createElevationMapFromPointcloudTmp(
+    pcl::PointCloud<pcl::PointXYZ>::Ptr map_pcl);
   void createElevationMap();
   std::tuple<double, double, double, double> getBound();
   void setVerbosityLevelToDebugIfFlagSet();
-  tier4_autoware_utils::LinearRing2d getConvexHull(
-    const pcl::PointCloud<pcl::PointXYZ>::Ptr & input_cloud);
-  lanelet::ConstLanelets getIntersectedLanelets(
-    const tier4_autoware_utils::LinearRing2d & convex_hull,
-    const lanelet::ConstLanelets & road_lanelets_);
-  pcl::PointCloud<pcl::PointXYZ>::Ptr getLaneFilteredPointCloud(
-    const lanelet::ConstLanelets & joint_lanelets,
-    const pcl::PointCloud<pcl::PointXYZ>::Ptr & cloud);
   bool isPointWithinLanelets(const grid_map::Position &, const lanelet::ConstLanelets &);
   bool checkPointWithinLanelets(
     const pcl::PointXYZ & point, const lanelet::ConstLanelets & joint_lanelets);

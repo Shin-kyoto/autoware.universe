@@ -47,6 +47,16 @@
 #include <Eigen/Geometry>
 #include <rosbag2_storage_default_plugins/sqlite/sqlite_statement_wrapper.hpp>
 
+class GridMapPclLoader : public grid_map::GridMapPclLoader
+{
+public:
+  void setGeometry(
+    const grid_map::Length & length, const double resolution, const grid_map::Position & position)
+  {
+    workingGridMap_.setGeometry(length, resolution, position);
+  }
+}
+
 ElevationMapLoaderNode::ElevationMapLoaderNode(const rclcpp::NodeOptions & options)
 : Node("elevation_map_loader", options)
 {
@@ -396,6 +406,7 @@ void ElevationMapLoaderNode::createElevationMap()
 
 std::tuple<double, double, double, double> ElevationMapLoaderNode::getBound()
 {
+  std::ofstream ofs_bound("bound.csv", std::ios::app);
   bool bound_flag = false;  // TODO(Shin-kyoto): bound_flagは暫定対応．
   double all_max_bound_x = 0.0;
   double all_max_bound_y = 0.0;
@@ -406,6 +417,8 @@ std::tuple<double, double, double, double> ElevationMapLoaderNode::getBound()
     pcl::PointXYZ minBound;
     pcl::PointXYZ maxBound;
     pcl::getMinMax3D(*map_pcl, minBound, maxBound);
+    ofs_bound << maxBound.x << "," << maxBound.y << "," << minBound.x << "," << minBound.y
+              << std::endl;
     if (!bound_flag) {
       all_max_bound_x = maxBound.x;
       all_max_bound_y = maxBound.y;
@@ -440,22 +453,44 @@ grid_map::GridMap ElevationMapLoaderNode::createElevationMapFromPointcloud(
 
   // set point cloud used for elevation map
   grid_map_pcl_loader->loadParameters(param_file_path_);
-  if (lane_filter_.use_lane_filter_) {
-    // filter point cloud by lanelets
-    const auto convex_hull = getConvexHull(map_pcl);
-    lanelet::ConstLanelets intersected_lanelets =
-      getIntersectedLanelets(convex_hull, lane_filter_.road_lanelets_);
-    pcl::PointCloud<pcl::PointXYZ>::Ptr lane_filtered_map_pcl_ptr =
-      getLaneFilteredPointCloud(intersected_lanelets, map_pcl);
-    grid_map_pcl_loader->setInputCloud(lane_filtered_map_pcl_ptr);
-  } else {
-    grid_map_pcl_loader->setInputCloud(map_pcl);
-  }
+  grid_map_pcl_loader->setInputCloud(map_pcl);
   // create elevation map from point cloud
   {
     const auto start = std::chrono::high_resolution_clock::now();
     grid_map_pcl_loader->preProcessInputCloud();
     grid_map_pcl_loader->initializeGridMapGeometryFromInputCloud();
+    grid_map_pcl_loader->addLayerFromInputCloud(layer_name_);
+    grid_map::grid_map_pcl::printTimeElapsedToRosInfoStream(
+      start, "Finish creating elevation map. Total time: ", this->get_logger());
+  }
+  return grid_map_pcl_loader->getGridMap();
+}
+
+grid_map::GridMap ElevationMapLoaderNode::createElevationMapFromPointcloudTmp(
+  pcl::PointCloud<pcl::PointXYZ>::Ptr map_pcl)
+{
+  auto grid_map_logger = rclcpp::get_logger("grid_map_logger");
+  grid_map_logger.set_level(rclcpp::Logger::Level::Error);
+  pcl::shared_ptr<GridMapPclLoader> grid_map_pcl_loader =
+    pcl::make_shared<GridMapPclLoader>(grid_map_logger);
+
+  // set point cloud used for elevation map
+  grid_map_pcl_loader->loadParameters(param_file_path_);
+  grid_map_pcl_loader->setInputCloud(map_pcl);
+  // create elevation map from point cloud
+  {
+    const auto start = std::chrono::high_resolution_clock::now();
+    grid_map_pcl_loader->preProcessInputCloud();
+    grid_map_pcl_loader->initializeGridMapGeometryFromInputCloud();
+    // get bound
+    pcl::PointXYZ minBound;
+    pcl::PointXYZ maxBound;
+    pcl::getMinMax3D(map_pcl, minBound, maxBound);
+    grid_map::Position position = grid_map::Position(
+      static_cast<int>(std::floor(minBound.x / 300) * 300) + 150,
+      static_cast<int>(std::floor(minBound.y / 300) * 300) + 150);
+    grid_map::Length length = grid_map::Length(300, 300);
+    grid_map_pcl_loader->setGeometry(length, 0.3, position);
     grid_map_pcl_loader->addLayerFromInputCloud(layer_name_);
     grid_map::grid_map_pcl::printTimeElapsedToRosInfoStream(
       start, "Finish creating elevation map. Total time: ", this->get_logger());
@@ -509,9 +544,14 @@ void ElevationMapLoaderNode::compareElevationMapWithOtherGridMap()
   std::ofstream ofs_lanelet("lanelet.csv", std::ios::app);
   ofs_lanelet << "p[0],p[1],index[0],index[1]" << std::endl;
   std::ofstream ofs_diff_within_lanelet("diff_elevation_within_lanelet.csv", std::ios::app);
-  ofs_diff_within_lanelet << "position.x(),position.y(),(*iterator)(0),(*iterator)(1),diff,elevation_lanefilter,elevation_original" << std::endl;
-  std::ofstream ofs_diff_within_lanelet_large_diff("large_diff_elevation_within_lanelet.csv", std::ios::app);
-  ofs_diff_within_lanelet_large_diff << "position.x(),position.y(),(*iterator)(0),(*iterator)(1),diff,elevation_lanefilter,elevation_original" << std::endl;
+  ofs_diff_within_lanelet << "position.x(),position.y(),(*iterator)(0),(*iterator)(1),diff,"
+                             "elevation_lanefilter,elevation_original"
+                          << std::endl;
+  std::ofstream ofs_diff_within_lanelet_large_diff(
+    "large_diff_elevation_within_lanelet.csv", std::ios::app);
+  ofs_diff_within_lanelet_large_diff << "position.x(),position.y(),(*iterator)(0),(*iterator)(1),"
+                                        "diff,elevation_lanefilter,elevation_original"
+                                     << std::endl;
   for (const auto & lanelet : lane_filter_.road_lanelets_) {
     auto lane_polygon = lanelet.polygon2d().basicPolygon();
     grid_map::Polygon polygon;
@@ -521,15 +561,22 @@ void ElevationMapLoaderNode::compareElevationMapWithOtherGridMap()
       elevation_map_.getIndex(grid_map::Position(p[0], p[1]), index);
       ofs_lanelet << p[0] << "," << p[1] << "," << index[0] << "," << index[1] << std::endl;
     }
-    for (grid_map::PolygonIterator iterator(elevation_map_, polygon); !iterator.isPastEnd(); ++iterator) {
+    for (grid_map::PolygonIterator iterator(elevation_map_, polygon); !iterator.isPastEnd();
+         ++iterator) {
       grid_map::Position position;
       elevation_map_.getPosition(*iterator, position);
       float diff = elevation_map_.at("elevation", *iterator) -
-        elevation_map_original.at("elevation", *iterator);
-      ofs_diff_within_lanelet << position.x() << "," << position.y() << "," << (*iterator)(0) << "," << (*iterator)(1) << "," << diff << "," << elevation_map_.at("elevation", *iterator) << "," << elevation_map_original.at("elevation", *iterator) << std::endl;
+                   elevation_map_original.at("elevation", *iterator);
+      ofs_diff_within_lanelet << position.x() << "," << position.y() << "," << (*iterator)(0) << ","
+                              << (*iterator)(1) << "," << diff << ","
+                              << elevation_map_.at("elevation", *iterator) << ","
+                              << elevation_map_original.at("elevation", *iterator) << std::endl;
       if (fabs(diff) >= 1.0) {
         // RCLCPP_INFO(this->get_logger(), "not equal");
-        ofs_diff_within_lanelet_large_diff << position.x() << "," << position.y() << "," << (*iterator)(0) << "," << (*iterator)(1) << "," << diff << "," << elevation_map_.at("elevation", *iterator) << "," << elevation_map_original.at("elevation", *iterator) << std::endl;
+        ofs_diff_within_lanelet_large_diff
+          << position.x() << "," << position.y() << "," << (*iterator)(0) << "," << (*iterator)(1)
+          << "," << diff << "," << elevation_map_.at("elevation", *iterator) << ","
+          << elevation_map_original.at("elevation", *iterator) << std::endl;
       }
     }
   }
