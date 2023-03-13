@@ -55,7 +55,7 @@ public:
   {
     workingGridMap_.setGeometry(length, resolution, position);
   }
-}
+};
 
 ElevationMapLoaderNode::ElevationMapLoaderNode(const rclcpp::NodeOptions & options)
 : Node("elevation_map_loader", options)
