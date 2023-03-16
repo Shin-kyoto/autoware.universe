@@ -216,12 +216,12 @@ void ElevationMapLoaderNode::inpaintElevationMap(const float radius)
 
   elevation_map_.setBasicLayers(std::vector<std::string>());
   if (lane_filter_.use_lane_filter_) {
+    RCLCPP_INFO(this->get_logger(), "using lane_filter. lane_margin_: %f", lane_filter_.lane_margin_);
     for (const auto & lanelet : lane_filter_.road_lanelets_) {
       auto lane_polygon = lanelet.polygon2d().basicPolygon();
       grid_map::Polygon polygon;
 
       if (lane_filter_.lane_margin_ > 0) {
-        RCLCPP_INFO(this->get_logger(), "lane_filter_.lane_margin_");
         lanelet::BasicPolygons2d out;
         bg::strategy::buffer::distance_symmetric<double> distance_strategy(
           lane_filter_.lane_margin_);
@@ -236,19 +236,12 @@ void ElevationMapLoaderNode::inpaintElevationMap(const float radius)
       }
       std::ofstream ofs_lane_polygon("lane_polygon.csv", std::ios::app);
       for (const auto & p : lane_polygon) {
-        // RCLCPP_INFO(this->get_logger(), "for p");
         ofs_lane_polygon << p[0] << "," << p[1] << std::endl;
         polygon.addVertex(grid_map::Position(p[0], p[1]));
       }
       std::ofstream ofs_elevation_map_grid("elevation_map_grid.csv", std::ios::app);
-      grid_map_utils::PolygonIterator iterator_(elevation_map_, polygon);
-      if (iterator_.isPastEnd()) {
-        RCLCPP_INFO(this->get_logger(), "iterator_.isPastEnd()");
-      }
-      ofs_elevation_map_grid << (*iterator_)(0) << "," << (*iterator_)(1) << std::endl;
       for (grid_map_utils::PolygonIterator iterator(elevation_map_, polygon); !iterator.isPastEnd();
            ++iterator) {
-        RCLCPP_INFO(this->get_logger(), "for iterator");
         ofs_elevation_map_grid << (*iterator)(0) << "," << (*iterator)(1) << std::endl;
         if (!elevation_map_.isValid(*iterator, layer_name_)) {
           elevation_map_.at("inpaint_mask", *iterator) = 1.0;
@@ -315,7 +308,6 @@ void ElevationMapLoaderNode::compareElevationMapWithOtherGridMap()
     }
     for (grid_map::PolygonIterator iterator(elevation_map_, polygon); !iterator.isPastEnd();
          ++iterator) {
-      RCLCPP_INFO(this->get_logger(), "iteration");
       grid_map::Position position;
       elevation_map_.getPosition(*iterator, position);
       float diff = elevation_map_.at("elevation", *iterator) -
@@ -324,8 +316,8 @@ void ElevationMapLoaderNode::compareElevationMapWithOtherGridMap()
                               << (*iterator)(1) << "," << diff << ","
                               << elevation_map_.at("elevation", *iterator) << ","
                               << elevation_map_original.at("elevation", *iterator) << std::endl;
-      if (fabs(diff) >= 1.0) {
-        // RCLCPP_INFO(this->get_logger(), "not equal");
+      if (fabs(diff) > 0.0) {
+        RCLCPP_INFO(this->get_logger(), "diff! %f", diff);
         ofs_diff_within_lanelet_large_diff
           << position.x() << "," << position.y() << "," << (*iterator)(0) << "," << (*iterator)(1)
           << "," << diff << "," << elevation_map_.at("elevation", *iterator) << ","
