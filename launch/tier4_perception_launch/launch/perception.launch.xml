@@ -66,7 +66,7 @@
     </group>
 
     <!-- occupancy grid map module -->
-    <group>
+    <!-- <group>
       <push-ros-namespace namespace="occupancy_grid_map"/>
       <include file="$(find-pkg-share tier4_perception_launch)/launch/occupancy_grid_map/pointcloud_based_occupancy_grid_map.launch.py">
         <arg name="input/obstacle_pointcloud" value="/perception/obstacle_segmentation/single_frame/pointcloud_raw"/>
@@ -78,13 +78,13 @@
         <arg name="container_name" value="$(var pointcloud_container_name)"/>
         <arg name="param_file" value="$(find-pkg-share probabilistic_occupancy_grid_map)/config/pointcloud_based_occupancy_grid_map.param.yaml"/>
       </include>
-    </group>
+    </group> -->
 
     <!-- object recognition module -->
-    <group unless="$(var use_empty_dynamic_object_publisher)">
-      <push-ros-namespace namespace="object_recognition"/>
-      <!-- detection module -->
-      <group>
+    <!-- <group unless="$(var use_empty_dynamic_object_publisher)">
+      <push-ros-namespace namespace="object_recognition"/> -->
+    <!-- detection module -->
+    <!-- <group>
         <push-ros-namespace namespace="detection"/>
         <include file="$(find-pkg-share tier4_perception_launch)/launch/object_recognition/detection/detection.launch.xml">
           <arg name="mode" value="$(var mode)"/>
@@ -112,14 +112,14 @@
           <arg name="use_pointcloud_container" value="$(var use_pointcloud_container)"/>
           <arg name="container_name" value="$(var pointcloud_container_name)"/>
         </include>
-      </group>
-      <!-- tracking module -->
-      <group>
+      </group> -->
+    <!-- tracking module -->
+    <!-- <group>
         <push-ros-namespace namespace="tracking"/>
         <include file="$(find-pkg-share tier4_perception_launch)/launch/object_recognition/tracking/tracking.launch.xml"/>
-      </group>
-      <!-- prediction module -->
-      <group>
+      </group> -->
+    <!-- prediction module -->
+    <!-- <group>
         <push-ros-namespace namespace="prediction"/>
         <include file="$(find-pkg-share tier4_perception_launch)/launch/object_recognition/prediction/prediction.launch.xml">
           <arg name="use_vector_map" value="$(var use_vector_map)"/>
@@ -132,14 +132,14 @@
       <node pkg="dummy_perception_publisher" exec="empty_objects_publisher" name="empty_objects_publisher" output="screen">
         <remap from="~/output/objects" to="/perception/object_recognition/objects"/>
       </node>
-    </group>
+    </group> -->
 
     <!-- traffic light module -->
-    <group if="$(var use_traffic_light_recognition)">
+    <!-- <group if="$(var use_traffic_light_recognition)">
       <push-ros-namespace namespace="traffic_light_recognition"/>
       <include file="$(find-pkg-share tier4_perception_launch)/launch/traffic_light_recognition/traffic_light.launch.xml">
         <arg name="enable_fine_detection" value="$(var traffic_light_recognition/enable_fine_detection)"/>
       </include>
-    </group>
+    </group> -->
   </group>
 </launch>
