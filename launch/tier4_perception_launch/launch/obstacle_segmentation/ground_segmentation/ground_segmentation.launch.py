@@ -325,10 +325,10 @@ class GroundSegmentationPipeline:
                 ],
                 parameters=[
                     {
-                        "use_differential_load": False,
-                        "use_lane_filter": False,
+                        "use_differential_load": True,
+                        "use_lane_filter": True,
                         "use_inpaint": True,
-                        "inpaint_radius": 1.0,
+                        "inpaint_radius": 0.3,
                         "lane_margin": 2.0,
                         "param_file_path": PathJoinSubstitution(
                             [
