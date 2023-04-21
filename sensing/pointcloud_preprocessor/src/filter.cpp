@@ -158,6 +158,50 @@ void pointcloud_preprocessor::Filter::unsubscribe()
   }
 }
 
+void write_output(
+  sensor_msgs::msg::PointCloud2 output_, const std::string name, const std::string time_string)
+{
+  if (name != "ring_outlier_filter") return;
+  auto msg = std::make_shared<sensor_msgs::msg::PointCloud2>(output_);
+
+  std::ofstream f0(
+    "./slower_" + time_string + std::to_string(msg->header.stamp.nanosec) + ".log", std::ios::app);
+  std::ofstream csv_log(
+    "./slower_" + time_string + std::to_string(msg->header.stamp.nanosec) + ".csv", std::ios::app);
+  csv_log << "header.stamp.nanosec," << msg->header.stamp.nanosec << "\n" << std::endl;
+  csv_log << "data_size," << msg->data.size() << "\n" << std::endl;
+  csv_log << "x,y,z,intensity" << std::endl;
+
+  uint32_t x_offset = msg->fields[pcl::getFieldIndex(*msg, "x")].offset;
+  uint32_t y_offset = msg->fields[pcl::getFieldIndex(*msg, "y")].offset;
+  uint32_t z_offset = msg->fields[pcl::getFieldIndex(*msg, "z")].offset;
+  uint32_t intensity_offset = msg->fields[pcl::getFieldIndex(*msg, "intensity")].offset;
+
+  f0 << "header.stamp.nanosec=" << msg->header.stamp.nanosec
+     << ", header.frame_id=" << msg->header.frame_id << "\n";
+
+  f0 << "height=" << msg->height << ", width=" << msg->width
+     << ", is_bigendian=" << msg->is_bigendian << ", point_step=" << msg->point_step
+     << ", row_step=" << msg->row_step << ", is_dense=" << msg->is_dense << "\n";
+
+  for (unsigned int idx = 0; idx < msg->width; idx++) {
+    float x = *reinterpret_cast<float *>(&msg->data[msg->point_step * idx + x_offset]);
+    float y = *reinterpret_cast<float *>(&msg->data[msg->point_step * idx + y_offset]);
+    float z = *reinterpret_cast<float *>(&msg->data[msg->point_step * idx + z_offset]);
+    float intensity =
+      *reinterpret_cast<float *>(&msg->data[msg->point_step * idx + intensity_offset]);
+
+    csv_log << x << "," << y << "," << z << "," << intensity << std::endl;
+    f0 << "(x, y, z) = (" << x << ", " << y << ", " << z << ")"
+       << "\n";
+  }
+
+  f0 << "------------------------"
+     << "\n";
+
+  f0.close();
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void pointcloud_preprocessor::Filter::computePublish(
   const PointCloud2ConstPtr & input, const IndicesPtr & indices)
@@ -201,6 +245,14 @@ void pointcloud_preprocessor::Filter::computePublish(
 
   // Copy timestamp to keep it
   output->header.stamp = input->header.stamp;
+
+  // debug code
+  auto * name_c = this->get_name();
+  std::string name = name_c;
+  rclcpp::Time current_time = this->now();
+  std::string time_string = std::to_string(current_time.nanoseconds());
+
+  write_output(*output, name, time_string);
 
   // Publish a boost shared ptr
   pub_output_->publish(std::move(output));
