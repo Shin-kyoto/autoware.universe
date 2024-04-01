@@ -1,6 +1,7 @@
 <?xml version="1.0"?>
 <launch>
   <arg name="input/pointcloud" default="/sensing/lidar/pointcloud"/>
+  <arg name="input/pointcloud/filtered" default="/sensing/lidar/concatenated/filtered/pointcloud"/>
   <arg name="output/objects" default="objects"/>
   <arg name="data_path" default="$(env HOME)/autoware_data" description="packages data and artifacts directory path"/>
   <arg name="model_name" default="centerpoint_tiny" description="options: `centerpoint` or `centerpoint_tiny`"/>
@@ -11,8 +12,16 @@
   <arg name="has_twist" default="false"/>
   <arg name="build_only" default="false" description="shutdown node after TensorRT engine file is built"/>
 
+  <include file="$(find-pkg-share lidar_centerpoint)/launch/centerpoint_preprocess.launch.py">
+    <arg name="input_topic" value="$(var input/pointcloud)"/>
+    <arg name="output_topic" value="$(var input/pointcloud/filtered)"/>
+    <arg name="use_multithread" value="False"/>
+    <arg name="use_intra_process" value="True"/>
+    <arg name="use_pointcloud_container" value="False"/>
+  </include>
+
   <node pkg="lidar_centerpoint" exec="lidar_centerpoint_node" name="lidar_centerpoint" output="screen">
-    <remap from="~/input/pointcloud" to="$(var input/pointcloud)"/>
+    <remap from="~/input/pointcloud" to="$(var input/pointcloud/filtered)"/>
     <remap from="~/output/objects" to="$(var output/objects)"/>
     <param name="score_threshold" value="$(var score_threshold)"/>
     <param name="densification_world_frame_id" value="map"/>
