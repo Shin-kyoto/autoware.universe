@@ -3,23 +3,17 @@ import os.path as osp
 
 from autoware_perception_msgs.msg import PredictedObjects
 from autoware_simpl_python.checkpoint import load_checkpoint
-from autoware_simpl_python.conversion import convert_lanelet
 from autoware_simpl_python.conversion import from_odometry
 from autoware_simpl_python.conversion import timestamp2ms
 from autoware_simpl_python.conversion import to_predicted_objects
 from autoware_simpl_python.dataclass import AgentHistory
-from autoware_simpl_python.dataclass import AgentState
-from autoware_simpl_python.dataclass import LaneSegment
 from autoware_simpl_python.datatype import AgentLabel
 from autoware_simpl_python.geometry import rotate_along_z
-from autoware_vad_python.projects.mmdet3d_plugin.VAD import VAD
-from autoware_simpl_python.preprocess import embed_agent
-from autoware_simpl_python.preprocess import embed_polyline
-from autoware_simpl_python.preprocess import relative_pose_encode
 from nav_msgs.msg import Odometry
+from sensor_msgs.msg import Image
+
 import numpy as np
 from numpy.typing import NDArray
-from onnxruntime import InferenceSession
 from rcl_interfaces.msg import ParameterDescriptor
 import rclpy
 import rclpy.duration
@@ -55,6 +49,13 @@ class SimplEgoNode(Node):
         # subscribers
         self._subscription = self.create_subscription(
             Odometry,
+            "~/input/ego",
+            self._callback,
+            qos_profile,
+        )
+
+        self._subscription = self.create_subscription(
+            Image,
             "~/input/image",
             self._callback,
             qos_profile,
@@ -102,7 +103,6 @@ class SimplEgoNode(Node):
         )
 
         # input attributes
-        self._lane_segments: list[LaneSegment] = convert_lanelet(lanelet_file)
         self._history = AgentHistory(max_length=num_timestamp)
 
         self._ego_uuid = hashlib.shake_256("EGO".encode()).hexdigest(8)
@@ -111,13 +111,7 @@ class SimplEgoNode(Node):
 
         # onnx inference
         self._is_onnx = osp.splitext(model_path)[-1] == ".onnx"
-        if self._is_onnx:
-            self._session = InferenceSession(
-                model_path, providers=["CUDAExecutionProvider", "CPUExecutionProvider"]
-            )
-            self._input_names = [i.name for i in self._session.get_inputs()]
-            self._output_names = [o.name for o in self._session.get_outputs()]
-        else:
+        if True:
             model_config_path = (
                 self.declare_parameter("model_config", descriptor=descriptor)
                 .get_parameter_value()
