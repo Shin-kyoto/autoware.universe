@@ -1,0 +1,10 @@
+/**:
+  ros__parameters:
+    num_timestamp: 48 # the number of past frames
+    timestamp_threshold: 1500 # [ms]
+    score_threshold: 0.0 # threshold of predicted score
+    labels: ["VEHICLE", "PEDESTRIAN", "CYCLIST"]
+    # labels: ["VEHICLE", "PEDESTRIAN", "MOTORCYCLIST", "CYCLIST", "BUS"]
+    model_path: "$(var data_path)/simpl_47x108_t4.pth"
+    # model_path: "$(var data_path)/simpl_47x108_av2.pth"
+    model_config: "$(find-pkg-share autoware_simpl_python)/config/simpl.yaml"

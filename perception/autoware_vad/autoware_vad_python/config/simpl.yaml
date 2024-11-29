@@ -1,0 +1,25 @@
+encoder:
+  actor_net:
+    in_channels: 10
+    # in_channels: 12
+    hidden_size: &D_ACTOR 128
+    fpn_size: 4
+  lane_net:
+    in_channels: 4
+    hidden_size: &D_LANE 128
+  fusion_net:
+    d_actor: *D_ACTOR
+    d_lane: *D_LANE
+    d_rpe_in: 5
+    d_rpe: 128
+    d_embed: &D_EMBED 128
+    num_scene_head: 8
+    num_scene_layer: 4
+    dropout: 0.1
+    update_edge: true
+decoder:
+  in_channels: *D_EMBED
+  n_order: 7
+  num_mode: 6
+  num_future: 60
+  pred_format: bezier
