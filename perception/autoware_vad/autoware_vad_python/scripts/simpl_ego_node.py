@@ -3,23 +3,17 @@ import os.path as osp
 
 from autoware_perception_msgs.msg import PredictedObjects
 from autoware_simpl_python.checkpoint import load_checkpoint
-from autoware_simpl_python.conversion import convert_lanelet
 from autoware_simpl_python.conversion import from_odometry
 from autoware_simpl_python.conversion import timestamp2ms
 from autoware_simpl_python.conversion import to_predicted_objects
 from autoware_simpl_python.dataclass import AgentHistory
-from autoware_simpl_python.dataclass import AgentState
-from autoware_simpl_python.dataclass import LaneSegment
 from autoware_simpl_python.datatype import AgentLabel
 from autoware_simpl_python.geometry import rotate_along_z
-from autoware_simpl_python.model import Simpl
-from autoware_simpl_python.preprocess import embed_agent
-from autoware_simpl_python.preprocess import embed_polyline
-from autoware_simpl_python.preprocess import relative_pose_encode
 from nav_msgs.msg import Odometry
+from sensor_msgs.msg import Image
+
 import numpy as np
 from numpy.typing import NDArray
-from onnxruntime import InferenceSession
 from rcl_interfaces.msg import ParameterDescriptor
 import rclpy
 import rclpy.duration
@@ -31,6 +25,11 @@ from rclpy.qos import QoSProfile
 from rclpy.qos import QoSReliabilityPolicy
 import torch
 import yaml
+
+from mmcv import Config
+from mmcv.runner import wrap_fp16_model
+from mmdet3d.models import build_model
+from mmdet.datasets import replace_ImageToTensor
 
 from .node_utils import ModelInput
 from .node_utils import softmax
@@ -51,6 +50,13 @@ class SimplEgoNode(Node):
         self._subscription = self.create_subscription(
             Odometry,
             "~/input/ego",
+            self._callback,
+            qos_profile,
+        )
+
+        self._subscription = self.create_subscription(
+            Image,
+            "~/input/image",
             self._callback,
             qos_profile,
         )
@@ -97,7 +103,6 @@ class SimplEgoNode(Node):
         )
 
         # input attributes
-        self._lane_segments: list[LaneSegment] = convert_lanelet(lanelet_file)
         self._history = AgentHistory(max_length=num_timestamp)
 
         self._ego_uuid = hashlib.shake_256("EGO".encode()).hexdigest(8)
@@ -106,13 +111,7 @@ class SimplEgoNode(Node):
 
         # onnx inference
         self._is_onnx = osp.splitext(model_path)[-1] == ".onnx"
-        if self._is_onnx:
-            self._session = InferenceSession(
-                model_path, providers=["CUDAExecutionProvider", "CPUExecutionProvider"]
-            )
-            self._input_names = [i.name for i in self._session.get_inputs()]
-            self._output_names = [o.name for o in self._session.get_outputs()]
-        else:
+        if True:
             model_config_path = (
                 self.declare_parameter("model_config", descriptor=descriptor)
                 .get_parameter_value()
@@ -120,8 +119,83 @@ class SimplEgoNode(Node):
             )
             with open(model_config_path) as f:
                 model_config = yaml.safe_load(f)
-            model = Simpl(**model_config)
-            model = load_checkpoint(model, model_path)
+
+            config_path = "../autoware_vad_python/projects/configs/VAD/VAD_base_e2e.py"
+            cfg = Config.fromfile(config_path)
+            # import modules from string list.
+            if cfg.get('custom_imports', None):
+                from mmcv.utils import import_modules_from_strings
+                import_modules_from_strings(**cfg['custom_imports'])
+
+            # import modules from plguin/xx, registry will be updated
+            if hasattr(cfg, 'plugin'):
+                if cfg.plugin:
+                    import importlib
+                    if hasattr(cfg, 'plugin_dir'):
+                        plugin_dir = cfg.plugin_dir
+                        _module_dir = osp.dirname(plugin_dir)
+                        _module_dir = _module_dir.split('/')
+                        _module_path = _module_dir[0]
+
+                        for m in _module_dir[1:]:
+                            _module_path = _module_path + '.' + m
+                        print(_module_path)
+                        plg_lib = importlib.import_module(_module_path)
+                    else:
+                        # import dir is the dirpath for the config file
+                        _module_dir = osp.dirname(config_path)
+                        _module_dir = _module_dir.split('/')
+                        _module_path = _module_dir[0]
+                        for m in _module_dir[1:]:
+                            _module_path = _module_path + '.' + m
+                        print(_module_path)
+                        plg_lib = importlib.import_module(_module_path)
+
+            # set cudnn_benchmark
+            if cfg.get('cudnn_benchmark', False):
+                torch.backends.cudnn.benchmark = True
+
+            cfg.model.pretrained = None
+            # in case the test dataset is concatenated
+            samples_per_gpu = 1
+            if isinstance(cfg.data.test, dict):
+                cfg.data.test.test_mode = True
+                samples_per_gpu = cfg.data.test.pop('samples_per_gpu', 1)
+                if samples_per_gpu > 1:
+                    # Replace 'ImageToTensor' to 'DefaultFormatBundle'
+                    cfg.data.test.pipeline = replace_ImageToTensor(
+                        cfg.data.test.pipeline)
+            elif isinstance(cfg.data.test, list):
+                for ds_cfg in cfg.data.test:
+                    ds_cfg.test_mode = True
+                samples_per_gpu = max(
+                    [ds_cfg.pop('samples_per_gpu', 1) for ds_cfg in cfg.data.test])
+                if samples_per_gpu > 1:
+                    for ds_cfg in cfg.data.test:
+                        ds_cfg.pipeline = replace_ImageToTensor(ds_cfg.pipeline)
+                        
+            # build the model and load checkpoint
+            cfg.model.train_cfg = None
+            model = build_model(cfg.model, test_cfg=cfg.get('test_cfg'))
+            fp16_cfg = cfg.get('fp16', None)
+            if fp16_cfg is not None:
+                wrap_fp16_model(model)
+            checkpoint_path = "../autoware_vad_python/ckpt/resnet50-19c8e357.pth"
+            checkpoint = load_checkpoint(model, checkpoint_path, map_location='cpu')
+
+            # old versions did not save class info in checkpoints, this walkaround is
+            # for backward compatibility
+            if 'CLASSES' in checkpoint.get('meta', {}):
+                model.CLASSES = checkpoint['meta']['CLASSES']
+            else:
+                model.CLASSES = dataset.CLASSES
+            # palette for visualization in segmentation tasks
+            if 'PALETTE' in checkpoint.get('meta', {}):
+                model.PALETTE = checkpoint['meta']['PALETTE']
+            elif hasattr(dataset, 'PALETTE'):
+                # segmentation dataset has `PALETTE` attribute
+                model.PALETTE = dataset.PALETTE
+
             self._model = model.cuda().eval()
 
         if build_only:
@@ -142,24 +216,20 @@ class SimplEgoNode(Node):
         )
         self._history.update_state(current_ego, info)
 
-        # pre-process
-        inputs = self._preprocess(self._history, current_ego, self._lane_segments)
 
-        # inference
-        if self._is_onnx:
-            inputs = {name: getattr(inputs, name) for name in self._input_names}
-            pred_scores, pred_trajs = self._session.run(self._output_names, inputs)
-        else:
-            inputs = inputs.cuda()
-            with torch.no_grad():
-                pred_scores, pred_trajs = self._model(
-                    inputs.actor,
-                    inputs.lane,
-                    inputs.rpe,
-                    inputs.rpe_mask,
-                )
+
+        inputs = inputs.cuda()
+        with torch.no_grad():
+            pred_scores, pred_trajs = self._model(
+                return_loss=True,
+                img_metas=img_metas,
+                ego_his_trajs=ego_his_trajs,
+            )
         # post-process
-        pred_scores, pred_trajs = self._postprocess(pred_scores, pred_trajs)
+        bbox_results = self._postprocess(pred_scores, pred_trajs)
+        pred_trajs = bbox_results['ego_fut_preds']
+        # bbox_result['ego_fut_cmd']
+        pred_scores = # TODO
 
         # convert to ROS msg
         pred_objs = to_predicted_objects(
@@ -171,29 +241,6 @@ class SimplEgoNode(Node):
         )
         self._publisher.publish(pred_objs)
 
-    def _preprocess(
-        self,
-        history: AgentHistory,
-        current_ego: AgentState,
-        lane_segments: list[LaneSegment],
-    ) -> ModelInput:
-        """Run preprocess.
-
-        Args:
-            history (AgentHistory): Ego history.
-            current_ego (AgentState): Current ego state.
-            lane_segments (list[LaneSegments]): Lane segments.
-
-        Returns:
-            ModelInput: Model inputs.
-        """
-        trajectory, uuids = history.as_trajectory()
-        agent, agent_ctr, agent_vec = embed_agent(trajectory, current_ego, self._label_ids)
-        lane, lane_ctr, lane_vec = embed_polyline(lane_segments, current_ego)
-
-        rpe, rpe_mask = relative_pose_encode(agent_ctr, agent_vec, lane_ctr, lane_vec)
-
-        return ModelInput(uuids, agent, lane, rpe, rpe_mask)
 
     def _postprocess(
         self,

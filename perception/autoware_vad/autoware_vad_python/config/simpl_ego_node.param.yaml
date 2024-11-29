@@ -7,4 +7,4 @@
     # labels: ["VEHICLE", "PEDESTRIAN", "MOTORCYCLIST", "CYCLIST", "BUS"]
     model_path: "$(var data_path)/simpl_47x108_t4.pth"
     # model_path: "$(var data_path)/simpl_47x108_av2.pth"
-    model_config: "$(find-pkg-share autoware_simpl_python)/config/simpl.yaml"
+    model_config: "$(find-pkg-share autoware_vad_python)/config/simpl.yaml"

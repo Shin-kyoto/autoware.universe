@@ -4,7 +4,7 @@ import os.path as osp
 from setuptools import find_packages
 from setuptools import setup
 
-package_name = "autoware_simpl_python"
+package_name = "autoware_vad_python"
 
 setup(
     name=package_name,

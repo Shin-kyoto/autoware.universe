@@ -1,13 +1,10 @@
+import hashlib
 import os.path as osp
 
-from autoware_perception_msgs.msg import ObjectClassification
 from autoware_perception_msgs.msg import PredictedObjects
-from autoware_perception_msgs.msg import TrackedObjects
 from autoware_simpl_python.checkpoint import load_checkpoint
 from autoware_simpl_python.conversion import convert_lanelet
-from autoware_simpl_python.conversion import convert_transform_stamped
-from autoware_simpl_python.conversion import from_tracked_objects
-from autoware_simpl_python.conversion import sort_object_infos
+from autoware_simpl_python.conversion import from_odometry
 from autoware_simpl_python.conversion import timestamp2ms
 from autoware_simpl_python.conversion import to_predicted_objects
 from autoware_simpl_python.dataclass import AgentHistory
@@ -15,10 +12,11 @@ from autoware_simpl_python.dataclass import AgentState
 from autoware_simpl_python.dataclass import LaneSegment
 from autoware_simpl_python.datatype import AgentLabel
 from autoware_simpl_python.geometry import rotate_along_z
-from autoware_simpl_python.model import Simpl
+from autoware_vad_python.projects.mmdet3d_plugin.VAD import VAD
 from autoware_simpl_python.preprocess import embed_agent
 from autoware_simpl_python.preprocess import embed_polyline
 from autoware_simpl_python.preprocess import relative_pose_encode
+from nav_msgs.msg import Odometry
 import numpy as np
 from numpy.typing import NDArray
 from onnxruntime import InferenceSession
@@ -31,36 +29,39 @@ import rclpy.parameter
 from rclpy.qos import QoSHistoryPolicy
 from rclpy.qos import QoSProfile
 from rclpy.qos import QoSReliabilityPolicy
-from std_msgs.msg import Header
-from tf2_ros import TransformException
-from tf2_ros.buffer import Buffer
-from tf2_ros.transform_listener import TransformListener
 import torch
 import yaml
+
+from mmcv import Config
+from mmcv.runner import wrap_fp16_model
+from mmdet3d.models import build_model
+from mmdet.datasets import replace_ImageToTensor
 
 from .node_utils import ModelInput
 from .node_utils import softmax
 
 
-class SimplNode(Node):
+class SimplEgoNode(Node):
+    """A ROS 2 node to predict EGO trajectory."""
+
     def __init__(self) -> None:
-        super().__init__("simpl_python_node")
+        super().__init__("simpl_python_ego_node")
 
         qos_profile = QoSProfile(
-            reliability=QoSReliabilityPolicy.BEST_EFFORT,
+            reliability=QoSReliabilityPolicy.RELIABLE,
             history=QoSHistoryPolicy.KEEP_LAST,
             depth=10,
         )
         # subscribers
-        self._object_sub = self.create_subscription(
-            TrackedObjects,
-            "~/input/objects",
+        self._subscription = self.create_subscription(
+            Odometry,
+            "~/input/image",
             self._callback,
             qos_profile,
         )
 
         # publisher
-        self._object_pub = self.create_publisher(PredictedObjects, "~/output/objects", qos_profile)
+        self._publisher = self.create_publisher(PredictedObjects, "~/output/objects", qos_profile)
 
         # ROS parameters
         descriptor = ParameterDescriptor(dynamic_typing=True)
@@ -104,6 +105,8 @@ class SimplNode(Node):
         self._lane_segments: list[LaneSegment] = convert_lanelet(lanelet_file)
         self._history = AgentHistory(max_length=num_timestamp)
 
+        self._ego_uuid = hashlib.shake_256("EGO".encode()).hexdigest(8)
+
         self._label_ids = [AgentLabel.from_str(label).value for label in labels]
 
         # onnx inference
@@ -122,116 +125,128 @@ class SimplNode(Node):
             )
             with open(model_config_path) as f:
                 model_config = yaml.safe_load(f)
-            model = Simpl(**model_config)
-            model = load_checkpoint(model, model_path)
+
+            config_path = "../autoware_vad_python/projects/configs/VAD/VAD_base_e2e.py"
+            cfg = Config.fromfile(config_path)
+            # import modules from string list.
+            if cfg.get('custom_imports', None):
+                from mmcv.utils import import_modules_from_strings
+                import_modules_from_strings(**cfg['custom_imports'])
+
+            # import modules from plguin/xx, registry will be updated
+            if hasattr(cfg, 'plugin'):
+                if cfg.plugin:
+                    import importlib
+                    if hasattr(cfg, 'plugin_dir'):
+                        plugin_dir = cfg.plugin_dir
+                        _module_dir = osp.dirname(plugin_dir)
+                        _module_dir = _module_dir.split('/')
+                        _module_path = _module_dir[0]
+
+                        for m in _module_dir[1:]:
+                            _module_path = _module_path + '.' + m
+                        print(_module_path)
+                        plg_lib = importlib.import_module(_module_path)
+                    else:
+                        # import dir is the dirpath for the config file
+                        _module_dir = osp.dirname(config_path)
+                        _module_dir = _module_dir.split('/')
+                        _module_path = _module_dir[0]
+                        for m in _module_dir[1:]:
+                            _module_path = _module_path + '.' + m
+                        print(_module_path)
+                        plg_lib = importlib.import_module(_module_path)
+
+            # set cudnn_benchmark
+            if cfg.get('cudnn_benchmark', False):
+                torch.backends.cudnn.benchmark = True
+
+            cfg.model.pretrained = None
+            # in case the test dataset is concatenated
+            samples_per_gpu = 1
+            if isinstance(cfg.data.test, dict):
+                cfg.data.test.test_mode = True
+                samples_per_gpu = cfg.data.test.pop('samples_per_gpu', 1)
+                if samples_per_gpu > 1:
+                    # Replace 'ImageToTensor' to 'DefaultFormatBundle'
+                    cfg.data.test.pipeline = replace_ImageToTensor(
+                        cfg.data.test.pipeline)
+            elif isinstance(cfg.data.test, list):
+                for ds_cfg in cfg.data.test:
+                    ds_cfg.test_mode = True
+                samples_per_gpu = max(
+                    [ds_cfg.pop('samples_per_gpu', 1) for ds_cfg in cfg.data.test])
+                if samples_per_gpu > 1:
+                    for ds_cfg in cfg.data.test:
+                        ds_cfg.pipeline = replace_ImageToTensor(ds_cfg.pipeline)
+                        
+            # build the model and load checkpoint
+            cfg.model.train_cfg = None
+            model = build_model(cfg.model, test_cfg=cfg.get('test_cfg'))
+            fp16_cfg = cfg.get('fp16', None)
+            if fp16_cfg is not None:
+                wrap_fp16_model(model)
+            checkpoint_path = "../autoware_vad_python/ckpt/resnet50-19c8e357.pth"
+            checkpoint = load_checkpoint(model, checkpoint_path, map_location='cpu')
+
+            # old versions did not save class info in checkpoints, this walkaround is
+            # for backward compatibility
+            if 'CLASSES' in checkpoint.get('meta', {}):
+                model.CLASSES = checkpoint['meta']['CLASSES']
+            else:
+                model.CLASSES = dataset.CLASSES
+            # palette for visualization in segmentation tasks
+            if 'PALETTE' in checkpoint.get('meta', {}):
+                model.PALETTE = checkpoint['meta']['PALETTE']
+            elif hasattr(dataset, 'PALETTE'):
+                # segmentation dataset has `PALETTE` attribute
+                model.PALETTE = dataset.PALETTE
+
             self._model = model.cuda().eval()
 
         if build_only:
             self.get_logger().info("Model has been built successfully and exit.")
             exit(0)
 
-        self._tf_buffer = Buffer()
-        self._tf_listener = TransformListener(self._tf_buffer, self)
-
-    def _callback(self, msg: TrackedObjects) -> None:
-        current_ego = self._get_current_ego(msg.header)
-
-        if current_ego is None:
-            self.get_logger().warn("No ego found.")
-            return
-
-        # remove ancient agent history
+    def _callback(self, msg: Odometry) -> None:
+        # remove invalid ancient agent history
         timestamp = timestamp2ms(msg.header)
         self._history.remove_invalid(timestamp, self._timestamp_threshold)
 
         # update agent history
-        states, infos = from_tracked_objects(msg)
-        if len(states) == 0:  # TODO: publish empty msg
-            self.get_logger().warn("No agent found.")
-            return
+        current_ego, info = from_odometry(
+            msg,
+            uuid=self._ego_uuid,
+            label_id=AgentLabel.VEHICLE,
+            size=(4.0, 2.0, 1.0),  # size is unused dummy
+        )
+        self._history.update_state(current_ego, info)
 
-        self._history.update(states, infos)
 
-        # inference
-        inputs = self._preprocess(self._history, current_ego, self._lane_segments)
-        # self.get_logger().info(f"{inputs.actor[0]=}")
-        if self._is_onnx:
-            inputs = {name: getattr(inputs, name) for name in self._input_names}
-            pred_scores, pred_trajs = self._session.run(self._output_names, inputs)
-        else:
-            inputs = inputs.cuda()
-            with torch.no_grad():
-                pred_scores, pred_trajs = self._model(
-                    inputs.actor,
-                    inputs.lane,
-                    inputs.rpe,
-                    inputs.rpe_mask,
-                )
-        pred_scores, pred_trajs = self._postprocess(pred_scores, pred_trajs)
 
-        # TODO(ktro2828): guarantee the order of agent info and history is same.
-        infos = sort_object_infos(self._history.infos, inputs.uuids)
+        inputs = inputs.cuda()
+        with torch.no_grad():
+            pred_scores, pred_trajs = self._model(
+                return_loss=True,
+                img_metas=img_metas,
+                ego_his_trajs=ego_his_trajs,
+            )
+        # post-process
+        bbox_results = self._postprocess(pred_scores, pred_trajs)
+        pred_trajs = bbox_results['ego_fut_preds']
+        # bbox_result['ego_fut_cmd']
+        pred_scores = # TODO
 
         # convert to ROS msg
         pred_objs = to_predicted_objects(
             header=msg.header,
-            infos=infos,
+            infos=[info],
             pred_scores=pred_scores,
             pred_trajs=pred_trajs,
             score_threshold=self._score_threshold,
         )
-        self._object_pub.publish(pred_objs)
+        self._publisher.publish(pred_objs)
 
-    def _get_current_ego(self, header: Header) -> AgentState | None:
-        """Return the current ego state. If failed to listen to transform, returns None.
-
-        Args:
-            header (Header): Current message header.
-
-        Returns:
-            AgentState | None: Returns AgentState if succeeded to listen transform.
-        """
-        to_frame = "map"
-        from_frame = "base_link"
-
-        # TODO(ktro2828): update values
-        uuid = "Ego"
-        label_id = ObjectClassification.CAR
-        size = np.array((0, 0, 0))
-        vxy = np.array((0.0, 0.0))
-
-        try:
-            tf_stamped = self._tf_buffer.lookup_transform(
-                to_frame, from_frame, header.stamp, rclpy.duration.Duration(seconds=0.1)
-            )
-            return convert_transform_stamped(tf_stamped, uuid, label_id, size, vxy)
-        except TransformException as ex:
-            self.get_logger().warn(f"Could not transform {to_frame} to {from_frame}: {ex}")
-            return None
-
-    def _preprocess(
-        self,
-        history: AgentHistory,
-        current_ego: AgentState,
-        lane_segments: list[LaneSegment],
-    ) -> ModelInput:
-        """Run preprocess.
-
-        Args:
-            history (AgentHistory): Agent history.
-            current_ego (AgentState): Current ego state.
-            lane_segments (list[LaneSegments]): Lane segments.
-
-        Returns:
-            ModelInput: Model inputs.
-        """
-        trajectory, uuids = history.as_trajectory()
-        agent, agent_ctr, agent_vec = embed_agent(trajectory, current_ego, self._label_ids)
-        lane, lane_ctr, lane_vec = embed_polyline(lane_segments, current_ego)
-
-        rpe, rpe_mask = relative_pose_encode(agent_ctr, agent_vec, lane_ctr, lane_vec)
-
-        return ModelInput(uuids, agent, lane, rpe, rpe_mask)
 
     def _postprocess(
         self,
@@ -276,7 +291,7 @@ class SimplNode(Node):
 def main(args=None) -> None:
     rclpy.init(args=args)
 
-    node = SimplNode()
+    node = SimplEgoNode()
     executor = MultiThreadedExecutor()
     try:
         rclpy.spin(node, executor)

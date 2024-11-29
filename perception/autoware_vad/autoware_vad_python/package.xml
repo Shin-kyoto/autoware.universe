@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>autoware_simpl_python</name>
+  <name>autoware_vad_python</name>
   <version>0.0.0</version>
   <description>TODO: Package description</description>
   <maintainer email="kotaro.uetake@tier4.jp">ktro2828</maintainer>
