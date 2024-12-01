@@ -81,11 +81,6 @@ class SimplEgoNode(Node):
             .get_parameter_value()
             .double_value
         )
-        lanelet_file = (
-            self.declare_parameter("lanelet_file", descriptor=descriptor)
-            .get_parameter_value()
-            .string_value
-        )
         labels = (
             self.declare_parameter("labels", descriptor=descriptor)
             .get_parameter_value()
@@ -223,6 +218,7 @@ class SimplEgoNode(Node):
             pred_scores, pred_trajs = self._model(
                 return_loss=True,
                 img_metas=img_metas,
+                img=img,
                 ego_his_trajs=ego_his_trajs,
             )
         # post-process
