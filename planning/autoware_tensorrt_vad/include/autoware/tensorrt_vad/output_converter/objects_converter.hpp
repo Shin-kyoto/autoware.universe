@@ -58,11 +58,6 @@ public:
     const Eigen::Matrix4d& base2map_transform) const;
 
 private:
-  // TODO(Shin-kyoto): tentative implementation. 
-  // offset for z is needed because VAD trained with nuScenes dataset outputs bbox in lidar coordinate, 
-  // but autoware needs bbox in base_link coordinate.
-  float z_offset_;
-
   /**
    * @brief Convert VAD object class to Autoware classification
    * @param object_class VAD object class index
@@ -120,18 +115,6 @@ private:
   float calculate_object_orientation(
     const BBox& bbox,
     const Eigen::Matrix4d& base2map_transform) const;
-
-  /**
-   * @brief Calculate predicted path yaw
-   * @param bbox Bounding box data
-   * @param base2map_transform Transformation matrix from base_link to map frame
-   * @return std::optional<float> Predicted path yaw angle in map frame if valid, otherwise std::nullopt
-   */
-   std::optional<float> calculate_predicted_path_yaw(
-    const BBox& bbox,
-    const Eigen::Matrix4d& base2map_transform) const;
-
-  };
 
 } // namespace autoware::tensorrt_vad::vad_interface
 
