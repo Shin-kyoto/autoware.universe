@@ -72,30 +72,15 @@ public:
     
     // Initialize MultiCameraPreprocessor
     MultiCameraPreprocessConfig preprocess_config = vad_config_.create_multi_camera_preprocess_config();
-    // Debug: Print preprocessor configuration
-    logger_->info("Creating MultiCameraPreprocessor with config: input=" + 
-                  std::to_string(preprocess_config.input_width) + "x" + std::to_string(preprocess_config.input_height) + 
-                  ", output=" + std::to_string(preprocess_config.output_width) + "x" + std::to_string(preprocess_config.output_height) + 
-                  ", cameras=" + std::to_string(preprocess_config.num_cameras));
     preprocessor_ = std::make_unique<MultiCameraPreprocessor>(preprocess_config, logger_);
-    logger_->info("MultiCameraPreprocessor initialized successfully");
     
     // Initialize MapPostprocessor
     MapPostprocessConfig map_postprocess_config = vad_config_.create_map_postprocess_config();
-    logger_->info("Creating MapPostprocessor with config: queries=" + 
-                  std::to_string(map_postprocess_config.map_num_queries) + 
-                  ", classes=" + std::to_string(map_postprocess_config.map_num_classes) + 
-                  ", points_per_polyline=" + std::to_string(map_postprocess_config.map_points_per_polylines));
     map_postprocessor_ = std::make_unique<MapPostprocessor>(map_postprocess_config, logger_);
-    logger_->info("MapPostprocessor initialized successfully");
     
     // Initialize ObjectPostprocessor
     ObjectPostprocessConfig object_postprocess_config = vad_config_.create_object_postprocess_config();
-    logger_->info("Creating ObjectPostprocessor with config: queries=" + 
-                  std::to_string(object_postprocess_config.prediction_num_queries) + 
-                  ", classes=" + std::to_string(object_postprocess_config.prediction_num_classes));
     object_postprocessor_ = std::make_unique<ObjectPostprocessor>(object_postprocess_config, logger_);
-    logger_->info("ObjectPostprocessor initialized successfully");
   }
 
   // Destructor
@@ -220,8 +205,8 @@ private:
   }
 
   void enqueue(const std::string& head_name) {
-    nets_["backbone"]->Enqueue(stream_);
-    nets_[head_name]->Enqueue(stream_);
+    nets_["backbone"]->enqueue(stream_);
+    nets_[head_name]->enqueue(stream_);
     cudaStreamSynchronize(stream_);
   }
 
@@ -283,36 +268,35 @@ private:
         static_cast<const float*>(nets_[head_name]->bindings["out.map_all_pts_preds"]->ptr),
         stream_);
     
-    // Extract planning for the given command
-    std::vector<float> planning(
+    auto [selected_trajectory, all_trajectories] = extract_trajectories(ego_fut_preds, cmd);
+    
+    return VadOutputData{selected_trajectory, all_trajectories, map_polylines, filtered_bboxes};
+  }
+
+  static std::pair<std::vector<float>, std::map<int32_t, std::vector<float>>> extract_trajectories(
+      const std::vector<float>& ego_fut_preds,
+      int32_t cmd) {
+    std::vector<float> selected_trajectory(
         ego_fut_preds.begin() + cmd * 12,
         ego_fut_preds.begin() + (cmd + 1) * 12
     );
-    
-    // cumsum to build trajectory in 3d space
     for (int32_t i = 1; i < 6; i++) {
-      planning[i * 2] += planning[(i-1) * 2];
-      planning[i * 2 + 1] += planning[(i-1) * 2 + 1];
+      selected_trajectory[i * 2] += selected_trajectory[(i-1) * 2];
+      selected_trajectory[i * 2 + 1] += selected_trajectory[(i-1) * 2 + 1];
     }
-    
-    // Extract all trajectories for all 3 commands
     std::map<int32_t, std::vector<float>> all_trajectories;
     for (int32_t command_idx = 0; command_idx < 3; command_idx++) {
       std::vector<float> trajectory(
           ego_fut_preds.begin() + command_idx * 12,
           ego_fut_preds.begin() + (command_idx + 1) * 12
       );
-      
-      // cumsum to build trajectory in 3d space
       for (int32_t i = 1; i < 6; i++) {
         trajectory[i * 2] += trajectory[(i-1) * 2];
         trajectory[i * 2 + 1] += trajectory[(i-1) * 2 + 1];
       }
-      
       all_trajectories[command_idx] = trajectory;
     }
-    
-    return VadOutputData{planning, all_trajectories, map_polylines, filtered_bboxes};
+    return {selected_trajectory, all_trajectories};
   }
 };
 

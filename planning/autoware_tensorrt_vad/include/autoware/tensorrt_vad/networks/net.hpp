@@ -66,14 +66,14 @@ public:
   );
 
   virtual std::vector<autoware::tensorrt_common::NetworkIO> generate_network_io(const VadConfig& vad_config) = 0;
-  virtual void set_input_tensor(TensorMap& ext) = 0;
   
   std::unique_ptr<autoware::tensorrt_common::TrtCommon> init_tensorrt(
     const VadConfig& vad_config,
     const autoware::tensorrt_common::TrtCommonConfig& trt_common_config,
     const std::string& plugins_path);
     
-  void Enqueue(cudaStream_t stream);
+  void enqueue(cudaStream_t stream);
+  void set_input_tensor(TensorMap& ext);
 
   virtual ~Net();
 };
